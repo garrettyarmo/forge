@@ -1,0 +1,9 @@
+ralph.log
+ralph.sh
+PROMPT.md
+PRD.md
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk

@@ -1,0 +1,9 @@
+[package]
+name = "forge-llm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "LLM CLI adapter layer for Forge"
+
+[dependencies]
+forge-graph = { path = "../forge-graph" }

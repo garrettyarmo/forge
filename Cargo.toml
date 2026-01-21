@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "forge-cli",
+    "forge-graph",
+    "forge-survey",
+    "forge-llm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Forge Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/your-org/forge"
+
+[workspace.dependencies]
+# Shared dependencies with pinned versions
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+petgraph = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Dev dependencies
+pretty_assertions = "1.4"
+tempfile = "3.10"

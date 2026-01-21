@@ -1,0 +1,13 @@
+[package]
+name = "forge-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "CLI entry point for Forge"
+
+[[bin]]
+name = "forge"
+path = "src/main.rs"
+
+[dependencies]
+forge-graph = { path = "../forge-graph" }

@@ -1,0 +1,9 @@
+[package]
+name = "forge-survey"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Code analysis and discovery for Forge"
+
+[dependencies]
+forge-graph = { path = "../forge-graph" }
