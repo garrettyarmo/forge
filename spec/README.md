@@ -60,7 +60,7 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
 
 ### Completed Milestones
 - ✅ **Milestone 1 (Foundation)**: Knowledge graph data structures, JSON persistence
-- 🔄 **Milestone 2 (Survey Core)**: In progress
+- ✅ **Milestone 2 (Survey Core)**: Complete
   - ✅ M2-T1: forge.yaml schema
   - ✅ M2-T2: Configuration loading
   - ✅ M2-T3: forge init command
@@ -68,13 +68,11 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
   - ✅ M2-T5: Parser trait
   - ✅ M2-T6: JavaScript/TypeScript parser
   - ✅ M2-T7: Discovery-to-graph mapper (GraphBuilder)
-  - ⏳ M2-T8: forge survey command
+  - ✅ M2-T8: forge survey command
   - ✅ M2-T9: JavaScript parser unit tests
-  - ⏳ M2-T10: Integration test with synthetic JS repo
+  - ✅ M2-T10: Integration test with synthetic JS repo (6 tests passing)
 
 ### Next Up
-- M2-T8: Implement `forge survey` command to orchestrate the full survey workflow
-- M2-T10: Write integration tests for end-to-end survey
 - Milestone 3: Python and Terraform parsers, language auto-detection
 - Milestone 4: Implicit coupling detection
 - Milestone 5: Multiple output formats (Markdown, JSON, Mermaid) with token budgeting

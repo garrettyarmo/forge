@@ -23,7 +23,7 @@
 //! # Available Parsers
 //!
 //! - [`JavaScriptParser`] - JavaScript/TypeScript (Milestone 2)
-//! - Python (Milestone 3) - Coming soon
+//! - [`PythonParser`] - Python (Milestone 3)
 //! - Terraform (Milestone 3) - Coming soon
 //!
 //! # Adding a New Parser
@@ -38,6 +38,7 @@
 //! See the extension guide in `docs/extending-parsers.md` for detailed instructions.
 
 pub mod javascript;
+pub mod python;
 mod traits;
 
 // Re-export all public types from traits
@@ -47,9 +48,9 @@ pub use traits::{
     ServiceDiscovery,
 };
 
-// Re-export the JavaScript parser
+// Re-export parsers
 pub use javascript::JavaScriptParser;
+pub use python::PythonParser;
 
 // Future parsers will be added here:
-// pub mod python;
 // pub mod terraform;

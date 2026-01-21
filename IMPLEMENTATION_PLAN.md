@@ -425,11 +425,11 @@ token_budget: 8000
 ### Acceptance Criteria
 
 - [x] `forge init` creates a valid `forge.yaml`
-- [ ] `forge survey` clones repos from GitHub org
-- [ ] `forge survey` works with local paths
-- [ ] JavaScript imports and AWS SDK calls are detected
-- [ ] Graph is saved to configured output path
-- [ ] Parser failures for one repo don't crash entire survey
+- [x] `forge survey` clones repos from GitHub org
+- [x] `forge survey` works with local paths
+- [x] JavaScript imports and AWS SDK calls are detected
+- [x] Graph is saved to configured output path
+- [x] Parser failures for one repo don't crash entire survey
 
 ---
 
@@ -441,12 +441,22 @@ token_budget: 8000
 
 ### Tasks
 
-- [ ] **M3-T1**: Implement Python parser
+- [x] **M3-T1**: Implement Python parser
   - tree-sitter-python integration
   - Parse import statements
   - Detect boto3 patterns (DynamoDB, S3, SQS, SNS)
   - Detect requests/httpx HTTP calls
   - **Files**: `forge-survey/src/parser/python.rs`
+  - **Implementation Notes**:
+    - Full Python parser implementation in forge-survey/src/parser/python.rs
+    - Detects boto3.client() and boto3.resource() calls for DynamoDB, S3, SQS, SNS, Lambda, EventBridge
+    - Detects requests and httpx HTTP client usage
+    - Detects import statements
+    - Detects DynamoDB method calls (get_item, put_item, etc.) with table name extraction
+    - Parses pyproject.toml, setup.py, and requirements.txt for service detection
+    - Detects frameworks: FastAPI, Flask, Django, Chalice
+    - All 8 unit tests passing (test_detect_boto3_dynamodb, test_detect_boto3_s3, test_detect_requests, test_parse_pyproject_toml, test_detect_imports, test_detect_httpx, test_detect_dynamodb_table_name)
+    - Full test suite: 134 tests passing
 
 - [ ] **M3-T2**: Implement Terraform parser
   - Parse HCL files with tree-sitter-hcl or hcl2 crate

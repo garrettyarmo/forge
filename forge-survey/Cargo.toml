@@ -19,6 +19,7 @@ chrono = { workspace = true }
 # Tree-sitter for AST parsing
 tree-sitter = "0.24"
 tree-sitter-javascript = "0.23"
+tree-sitter-python = "0.23"
 streaming-iterator = "0.1"
 
 [dev-dependencies]
