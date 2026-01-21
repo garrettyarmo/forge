@@ -158,6 +158,10 @@ async def create_user(user_data: dict):
 /// - requests library usage
 /// - HTTP methods (GET, POST, PUT, DELETE)
 /// - API call URLs
+///
+/// Note: API calls are currently stored as attributes on the service node,
+/// not as separate nodes or edges. This may change in future versions when
+/// we can resolve target services from URLs.
 #[test]
 fn test_survey_python_repo_with_http_calls() {
     let dir = tempdir().unwrap();
@@ -211,17 +215,45 @@ def delete_order(order_id):
 
     let graph = builder.build();
 
-    // Should detect multiple API calls
-    // Note: API calls create edges but may not create separate nodes
-    let edges: Vec<_> = graph.edges().collect();
+    // API calls are currently stored as attributes on the service node, not as edges
+    // This test verifies that HTTP client calls are detected and recorded
+    let services: Vec<_> = graph.nodes_by_type(NodeType::Service).collect();
+    assert_eq!(services.len(), 1, "Should have exactly one service node");
 
-    // We expect at least some discoveries from HTTP client usage
-    assert!(
-        edges.len() > 0 || graph.node_count() > 1,
-        "Should detect HTTP client usage. Found {} edges, {} nodes",
-        edges.len(),
-        graph.node_count()
-    );
+    let service = services[0];
+
+    // Check if api_calls attribute exists and contains the HTTP calls
+    if let Some(AttributeValue::List(api_calls)) = service.attributes.get("api_calls") {
+        assert!(
+            api_calls.len() >= 4,
+            "Should detect at least 4 API calls (GET, POST, PUT, DELETE). Found {}",
+            api_calls.len()
+        );
+
+        // Verify we have different HTTP methods
+        let has_get = api_calls.iter().any(|call| {
+            if let AttributeValue::Map(map) = call {
+                map.get("method").map(|m| matches!(m, AttributeValue::String(s) if s == "GET")).unwrap_or(false)
+            } else {
+                false
+            }
+        });
+        let has_post = api_calls.iter().any(|call| {
+            if let AttributeValue::Map(map) = call {
+                map.get("method").map(|m| matches!(m, AttributeValue::String(s) if s == "POST")).unwrap_or(false)
+            } else {
+                false
+            }
+        });
+
+        assert!(has_get, "Should detect GET requests");
+        assert!(has_post, "Should detect POST requests");
+    } else {
+        panic!(
+            "Service node should have api_calls attribute. Found attributes: {:?}",
+            service.attributes.keys().collect::<Vec<_>>()
+        );
+    }
 }
 
 /// Test surveying a Python repository with multiple AWS services.

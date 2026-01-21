@@ -17,6 +17,8 @@ Design documentation for Forge, a reusable platform for surveying and mapping so
   - Status: JavaScript/TypeScript parser complete (M2-T6)
   - PythonParser: Detects services, imports, AWS SDK usage (boto3), DynamoDB operations, HTTP calls
   - Status: Python parser complete (M3-T1)
+  - TerraformParser: Detects AWS resources (DynamoDB, SQS, SNS, S3, Lambda)
+  - Status: Terraform parser complete (M3-T2)
 - **GitHub Integration**: Clone and cache repositories from GitHub organizations
   - RepoCache: Manages local repository copies with automatic pulling
   - GitHubClient: Lists repos using octocrab
@@ -75,7 +77,9 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
   - ✅ M2-T10: Integration test with synthetic JS repo (6 tests passing)
 - ✅ **Milestone 3 (Multi-Language Support)**: In Progress
   - ✅ M3-T1: Python parser
+  - ✅ M3-T2: Terraform parser
   - ✅ M3-T5: Python parser tests
+  - ✅ M3-T6: Terraform parser tests
 
 ### Next Up
 - Milestone 3: Terraform parser, language auto-detection

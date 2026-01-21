@@ -24,7 +24,7 @@
 //!
 //! - [`JavaScriptParser`] - JavaScript/TypeScript (Milestone 2)
 //! - [`PythonParser`] - Python (Milestone 3)
-//! - Terraform (Milestone 3) - Coming soon
+//! - [`TerraformParser`] - Terraform/HCL (Milestone 3)
 //!
 //! # Adding a New Parser
 //!
@@ -39,6 +39,7 @@
 
 pub mod javascript;
 pub mod python;
+pub mod terraform;
 mod traits;
 
 // Re-export all public types from traits
@@ -51,6 +52,4 @@ pub use traits::{
 // Re-export parsers
 pub use javascript::JavaScriptParser;
 pub use python::PythonParser;
-
-// Future parsers will be added here:
-// pub mod terraform;
+pub use terraform::TerraformParser;

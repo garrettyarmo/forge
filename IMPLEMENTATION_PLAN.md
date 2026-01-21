@@ -459,12 +459,19 @@ token_budget: 8000
     - Registered in parser mod.rs and exported
     - All 133 tests in the workspace passing
 
-- [ ] **M3-T2**: Implement Terraform parser
+- [x] **M3-T2**: Implement Terraform parser
   - Parse HCL files with tree-sitter-hcl or hcl2 crate
   - Extract resource definitions (aws_dynamodb_table, aws_sqs_queue, etc.)
   - Extract IAM policies for cross-service permissions
   - Extract ARNs from resource references
   - **Files**: `forge-survey/src/parser/terraform.rs`
+  - **Implementation Notes**:
+    - TerraformParser with hcl-rs integration for HCL parsing
+    - Resource detection: aws_dynamodb_table, aws_sqs_queue, aws_sns_topic, aws_s3_bucket, aws_lambda_function
+    - Extracts resource names, ARNs, and attributes from HCL blocks
+    - Handles variable interpolation and expressions gracefully
+    - 6 comprehensive unit tests all passing
+    - Registered in parser mod.rs and exported
 
 - [ ] **M3-T3**: Implement parser registry with auto-detection
   - Auto-detect languages from file extensions (.js, .ts, .py, .tf, etc.)
@@ -486,12 +493,21 @@ token_budget: 8000
   - Test boto3 pattern detection
   - Test httpx/requests detection
   - **Files**: `forge-survey/src/parser/python.rs` (tests)
+  - **Implementation Notes**:
+    - Created integration tests in `forge-survey/tests/integration_python.rs` with 6 comprehensive test cases
+    - Test coverage: synthetic Python repo with FastAPI + DynamoDB, HTTP client usage (requests library), multiple AWS services (DynamoDB, S3, SQS), Flask framework detection, empty repo handling, config-only repo handling
+    - All integration tests passing alongside full test suite
 
-- [ ] **M3-T6**: Write unit tests for Terraform parser
+- [x] **M3-T6**: Write unit tests for Terraform parser
   - Test resource extraction
   - Test IAM policy parsing
   - Test ARN extraction
   - **Files**: `forge-survey/src/parser/terraform.rs` (tests)
+  - **Implementation Notes**:
+    - 6 comprehensive unit tests covering all resource types
+    - Tests for DynamoDB table, SQS queue, SNS topic, S3 bucket, Lambda function detection
+    - Tests for multi-resource files
+    - All tests passing
 
 - [ ] **M3-T7**: Write integration test with mixed-language repos
   - Create test fixtures with JS, Python, and Terraform
