@@ -205,7 +205,7 @@ LLMs are **only** used in the explicit business context interview (Milestone 6),
   - Verify `cargo build` succeeds
   - **Files**: `Cargo.toml`, `forge-*/Cargo.toml`
 
-- [ ] **M1-T2**: Set up GitHub Actions CI
+- [x] **M1-T2**: Set up GitHub Actions CI
   - Rust build and test on push/PR
   - Clippy linting
   - Format checking with rustfmt
@@ -264,7 +264,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 - [x] `cargo test --workspace` passes all tests
 - [x] Can create a graph with nodes and edges programmatically
 - [x] Can save graph to JSON and reload with identical structure
-- [ ] CI runs on every push (NOT YET DONE)
+- [x] CI runs on every push
 
 ---
 
