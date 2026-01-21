@@ -442,18 +442,22 @@ token_budget: 8000
 ### Tasks
 
 - [x] **M3-T1**: Implement Python parser
-  - tree-sitter-python dependency added to Cargo.toml
-  - Complete PythonParser implementation in forge-survey/src/parser/python.rs
-  - Detects imports (import X, from X import Y)
-  - Detects boto3 client/resource calls (dynamodb, s3, sqs, sns, lambda, eventbridge)
-  - Detects HTTP clients (requests, httpx)
-  - Detects DynamoDB methods (get_item, put_item, update_item, delete_item, query, scan)
-  - Parses pyproject.toml, setup.py, requirements.txt for service detection
-  - Detects frameworks (FastAPI, Flask, Django, Chalice, Starlette)
-  - Finds entry points (main.py, app.py, run.py, etc.)
-  - 7 comprehensive unit tests passing
-  - Registered in parser mod.rs and exported
-  - All 140 workspace tests passing
+  - **Files**: `forge-survey/src/parser/python.rs`, `forge-survey/Cargo.toml`
+  - **Implementation Notes**:
+    - PythonParser with tree-sitter-python integration for AST parsing
+    - Import detection: `import X` and `from X import Y` statements
+    - boto3 client/resource detection: dynamodb, s3, sqs, sns, lambda, eventbridge
+    - HTTP client detection: requests, httpx libraries
+    - DynamoDB method detection with operation classification (read vs write vs read-write):
+      - Read operations: get_item, query, scan
+      - Write operations: put_item, update_item, delete_item
+      - Read-write operations: batch_get_item, batch_write_item
+    - Service config parsing: pyproject.toml, setup.py, requirements.txt
+    - Framework detection: FastAPI, Flask, Django, Chalice, Starlette
+    - Entry point discovery: main.py, app.py, run.py, wsgi.py, asgi.py
+    - 7 comprehensive unit tests all passing
+    - Registered in parser mod.rs and exported
+    - All 133 tests in the workspace passing
 
 - [ ] **M3-T2**: Implement Terraform parser
   - Parse HCL files with tree-sitter-hcl or hcl2 crate
@@ -477,7 +481,7 @@ token_budget: 8000
   - Apply appropriate parsers automatically
   - **Files**: `forge-survey/src/lib.rs`, `forge-survey/src/detection.rs`
 
-- [ ] **M3-T5**: Write unit tests for Python parser
+- [x] **M3-T5**: Write unit tests for Python parser
   - Test import detection
   - Test boto3 pattern detection
   - Test httpx/requests detection
