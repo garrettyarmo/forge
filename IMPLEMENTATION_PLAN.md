@@ -326,11 +326,21 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
     - Records evidence (file:line) for all edges
     - All 6 tests passing
 
-- [ ] **M2-T8**: Implement `forge survey` command
+- [x] **M2-T8**: Implement `forge survey` command
   - Load config, clone repos, run parsers
   - Build graph, save to output path
   - Progress reporting
   - **Files**: `forge-cli/src/commands/survey.rs`
+  - **Implementation Notes**:
+    - Complete survey command implementation in forge-cli/src/commands/survey.rs
+    - Loads configuration from forge.yaml with CLI overrides
+    - Discovers repositories from GitHub org, explicit repos, and local paths
+    - Clones/updates GitHub repos to local cache
+    - Parses JavaScript/TypeScript files using JavaScriptParser
+    - Builds knowledge graph using GraphBuilder
+    - Saves graph to configured output path
+    - Handles errors gracefully (one repo failure doesn't crash entire survey)
+    - All tests passing
 
 - [x] **M2-T9**: Write unit tests for JavaScript parser
   - Test import detection

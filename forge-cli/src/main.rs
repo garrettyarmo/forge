@@ -131,8 +131,7 @@ fn main() {
             incremental,
             verbose,
         } => {
-            // TODO: Implement survey command (M2-T8)
-            let _ = (
+            let options = commands::SurveyOptions {
                 config,
                 output,
                 repos,
@@ -140,9 +139,14 @@ fn main() {
                 business_context,
                 incremental,
                 verbose,
-            );
-            println!("Survey command not yet implemented. Coming in M2-T8.");
-            Ok(())
+            };
+            // Survey is async, so we need a tokio runtime
+            match tokio::runtime::Runtime::new() {
+                Ok(runtime) => runtime
+                    .block_on(commands::run_survey(options))
+                    .map_err(|e| e.to_string()),
+                Err(e) => Err(format!("Failed to create tokio runtime: {}", e)),
+            }
         }
         Commands::Map {
             config,
