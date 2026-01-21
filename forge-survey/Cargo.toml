@@ -7,3 +7,14 @@ description = "Code analysis and discovery for Forge"
 
 [dependencies]
 forge-graph = { path = "../forge-graph" }
+octocrab = "0.44"
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = "0.1"
+walkdir = "2.5"
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+pretty_assertions = { workspace = true }

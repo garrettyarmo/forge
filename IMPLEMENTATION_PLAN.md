@@ -295,7 +295,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
   - Prompt for GitHub org or let user edit manually
   - **Files**: `forge-cli/src/commands/init.rs`
 
-- [ ] **M2-T4**: Implement GitHub API client
+- [x] **M2-T4**: Implement GitHub API client
   - List repos in organization
   - Clone/pull repos to local cache (`~/.forge/repos/`)
   - Handle authentication (token from env or config)
