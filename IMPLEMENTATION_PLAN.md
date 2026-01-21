@@ -448,15 +448,14 @@ token_budget: 8000
   - Detect requests/httpx HTTP calls
   - **Files**: `forge-survey/src/parser/python.rs`
   - **Implementation Notes**:
-    - Full Python parser implementation in forge-survey/src/parser/python.rs
-    - Detects boto3.client() and boto3.resource() calls for DynamoDB, S3, SQS, SNS, Lambda, EventBridge
-    - Detects requests and httpx HTTP client usage
-    - Detects import statements
-    - Detects DynamoDB method calls (get_item, put_item, etc.) with table name extraction
-    - Parses pyproject.toml, setup.py, and requirements.txt for service detection
-    - Detects frameworks: FastAPI, Flask, Django, Chalice
-    - All 8 unit tests passing (test_detect_boto3_dynamodb, test_detect_boto3_s3, test_detect_requests, test_parse_pyproject_toml, test_detect_imports, test_detect_httpx, test_detect_dynamodb_table_name)
-    - Full test suite: 134 tests passing
+    - Complete Python parser implementation in forge-survey/src/parser/python.rs
+    - Detects boto3 usage (DynamoDB, S3, SQS, SNS, Lambda, EventBridge)
+    - Detects HTTP clients (requests, httpx)
+    - Detects DynamoDB operations with table name extraction
+    - Service detection from pyproject.toml, setup.py, requirements.txt
+    - All 7 unit tests passing
+    - tree-sitter-python = "0.23" dependency already in Cargo.toml
+    - Properly exported in forge-survey/src/parser/mod.rs
 
 - [ ] **M3-T2**: Implement Terraform parser
   - Parse HCL files with tree-sitter-hcl or hcl2 crate
