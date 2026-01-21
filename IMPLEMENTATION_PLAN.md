@@ -278,19 +278,19 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 
 ### Tasks
 
-- [ ] **M2-T1**: Define forge.yaml configuration schema
+- [x] **M2-T1**: Define forge.yaml configuration schema
   - Top-level structure with repos, output, optional settings
   - Support for org URL, explicit repo list, local paths
   - Languages auto-detected (optional `languages.exclude` for edge cases)
   - **Files**: `forge-cli/src/config.rs`
 
-- [ ] **M2-T2**: Implement configuration loading
+- [x] **M2-T2**: Implement configuration loading
   - Load from `./forge.yaml` by default
   - Support `--config` flag override
   - Environment variable overrides (`FORGE_*`)
   - **Files**: `forge-cli/src/config.rs`
 
-- [ ] **M2-T3**: Implement `forge init` command
+- [x] **M2-T3**: Implement `forge init` command
   - Generate default `forge.yaml` with comments
   - Prompt for GitHub org or let user edit manually
   - **Files**: `forge-cli/src/commands/init.rs`
@@ -405,7 +405,7 @@ token_budget: 8000
 
 ### Acceptance Criteria
 
-- [ ] `forge init` creates a valid `forge.yaml`
+- [x] `forge init` creates a valid `forge.yaml`
 - [ ] `forge survey` clones repos from GitHub org
 - [ ] `forge survey` works with local paths
 - [ ] JavaScript imports and AWS SDK calls are detected
