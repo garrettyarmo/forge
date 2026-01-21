@@ -15,6 +15,8 @@ Design documentation for Forge, a reusable platform for surveying and mapping so
 - **Parser Architecture**: Trait-based system for language-specific parsers
   - JavaScriptParser: Detects services, imports, AWS SDK usage, DynamoDB operations, HTTP calls
   - Status: JavaScript/TypeScript parser complete (M2-T6)
+  - PythonParser: Detects services, imports, AWS SDK usage (boto3), DynamoDB operations, HTTP calls
+  - Status: Python parser complete (M3-T1)
 - **GitHub Integration**: Clone and cache repositories from GitHub organizations
   - RepoCache: Manages local repository copies with automatic pulling
   - GitHubClient: Lists repos using octocrab
@@ -71,9 +73,12 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
   - ✅ M2-T8: forge survey command
   - ✅ M2-T9: JavaScript parser unit tests
   - ✅ M2-T10: Integration test with synthetic JS repo (6 tests passing)
+- ✅ **Milestone 3 (Multi-Language Support)**: In Progress
+  - ✅ M3-T1: Python parser
+  - ✅ M3-T5: Python parser tests
 
 ### Next Up
-- Milestone 3: Python and Terraform parsers, language auto-detection
+- Milestone 3: Terraform parser, language auto-detection
 - Milestone 4: Implicit coupling detection
 - Milestone 5: Multiple output formats (Markdown, JSON, Mermaid) with token budgeting
 - Milestone 6: LLM-assisted business context interview
