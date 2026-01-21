@@ -10,6 +10,7 @@
 //! - **Extensible**: New languages can be added by implementing the Parser trait
 //! - **Resilient**: Parser failures don't crash the entire survey
 
+use std::any::Any;
 use std::path::Path;
 use thiserror::Error;
 
@@ -229,6 +230,12 @@ pub struct CloudResourceDiscovery {
 /// }
 /// ```
 pub trait Parser: Send + Sync {
+    /// Returns a reference to `Any` for downcasting to concrete parser types.
+    ///
+    /// This is needed for accessing parser-specific methods like
+    /// `JavaScriptParser::parse_package_json` or `PythonParser::parse_project_config`.
+    fn as_any(&self) -> &dyn Any;
+
     /// Returns the file extensions this parser handles (without the dot).
     ///
     /// For example: `&["js", "jsx", "ts", "tsx"]` for JavaScript/TypeScript.
@@ -432,6 +439,10 @@ mod tests {
     struct MockParser;
 
     impl Parser for MockParser {
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+
         fn supported_extensions(&self) -> &[&str] {
             &["mock"]
         }

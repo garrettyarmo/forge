@@ -4,9 +4,10 @@
 //! 1. Loading configuration from forge.yaml
 //! 2. Discovering repositories from GitHub org, explicit repos, or local paths
 //! 3. Cloning/updating repositories to local cache
-//! 4. Parsing code with language-specific parsers (JavaScript/TypeScript in M2)
-//! 5. Building a knowledge graph from discoveries
-//! 6. Saving the graph to the configured output path
+//! 4. Automatically detecting languages and selecting appropriate parsers
+//! 5. Parsing code with language-specific parsers (JavaScript/TypeScript, Python, Terraform)
+//! 6. Building a knowledge graph from discoveries
+//! 7. Saving the graph to the configured output path
 //!
 //! # Usage
 //!
@@ -32,8 +33,8 @@
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
 use forge_survey::{
-    parser::{javascript::JavaScriptParser, Parser},
-    CloneMethod as SurveyCloneMethod, GitHubClient, GraphBuilder, RepoCache, RepoInfo,
+    detect_languages, parser::ParserRegistry, CloneMethod as SurveyCloneMethod, GitHubClient,
+    GraphBuilder, RepoCache, RepoInfo,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -156,6 +157,9 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     // Initialize graph builder
     let mut builder = GraphBuilder::new();
 
+    // Create parser registry once
+    let registry = ParserRegistry::new().map_err(|e| SurveyError::ParserError(e))?;
+
     // Setup repository cache for GitHub repos
     let cache = RepoCache::new(
         config.output.cache_path.clone(),
@@ -169,7 +173,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     for (i, repo) in repos.iter().enumerate() {
         println!("[{}/{}] Surveying: {}", i + 1, repos.len(), repo.full_name);
 
-        match survey_repository(repo, &cache, &mut builder, &config, &options).await {
+        match survey_repository(repo, &cache, &mut builder, &config, &options, &registry).await {
             Ok(()) => {
                 success_count += 1;
                 if options.verbose {
@@ -337,6 +341,7 @@ async fn survey_repository(
     builder: &mut GraphBuilder,
     config: &ForgeConfig,
     options: &SurveyOptions,
+    registry: &ParserRegistry,
 ) -> Result<(), SurveyError> {
     // Determine local path
     let local_path = if repo.owner == "local" {
@@ -365,38 +370,138 @@ async fn survey_repository(
     // Set repository context in builder
     builder.set_repo_context(&repo.full_name, commit_sha.as_deref());
 
-    // Check if JavaScript parsing is excluded
-    if config.is_language_excluded("javascript") {
+    // Detect languages in the repository
+    let detected = detect_languages(&local_path);
+
+    if options.verbose {
+        if detected.is_empty() {
+            println!("  No supported languages detected");
+        } else {
+            let lang_names: Vec<String> = detected
+                .iter()
+                .map(|l| format!("{} ({:.0}%)", l.name, l.confidence * 100.0))
+                .collect();
+            println!("  Detected languages: {}", lang_names.join(", "));
+        }
+    }
+
+    // Get parsers for detected languages, respecting exclusions
+    let parsers = registry.get_for_languages(&detected, &config.languages.exclude);
+
+    if parsers.is_empty() {
         if options.verbose {
-            println!("  Skipping JavaScript parsing (excluded in config)");
+            if !config.languages.exclude.is_empty() {
+                println!(
+                    "  No parsers available after exclusions (excluded: {})",
+                    config.languages.exclude.join(", ")
+                );
+            } else {
+                println!("  No parsers available for detected languages");
+            }
         }
         return Ok(());
     }
 
-    // Parse with JavaScript parser (only parser available in M2)
     if options.verbose {
-        println!("  Parsing JavaScript/TypeScript files...");
+        println!("  Using {} parser(s)", parsers.len());
     }
 
-    let js_parser = JavaScriptParser::new()?;
-
-    // Parse package.json for service metadata
-    if let Some(service) = js_parser.parse_package_json(&local_path) {
-        if options.verbose {
-            println!("  Found service: {}", service.name);
+    // Detect service metadata from applicable config files
+    // Try JavaScript/TypeScript (package.json)
+    let package_json_path = local_path.join("package.json");
+    let mut service_id = None;
+    if package_json_path.exists() {
+        if let Some(js_parser) = registry.get("javascript") {
+            // Use downcast to call parse_package_json on JavaScriptParser
+            if let Some(js_parser) = js_parser
+                .as_ref()
+                .as_any()
+                .downcast_ref::<forge_survey::parser::javascript::JavaScriptParser>()
+            {
+                if let Some(service) = js_parser.parse_package_json(&local_path) {
+                    if options.verbose {
+                        println!("  Found service: {} (from package.json)", service.name);
+                    }
+                    service_id = Some(builder.add_service(service));
+                }
+            }
         }
-        let service_id = builder.add_service(service);
+    }
 
-        // Parse repository code
-        let discoveries = js_parser.parse_repo(&local_path)?;
+    // Try Python (pyproject.toml, setup.py, requirements.txt)
+    if service_id.is_none() {
+        let python_configs = ["pyproject.toml", "setup.py", "requirements.txt"];
+        let has_python_config = python_configs
+            .iter()
+            .any(|f| local_path.join(f).exists());
+
+        if has_python_config {
+            if let Some(py_parser) = registry.get("python") {
+                if let Some(py_parser) = py_parser
+                    .as_ref()
+                    .as_any()
+                    .downcast_ref::<forge_survey::parser::python::PythonParser>()
+                {
+                    if let Some(service) = py_parser.parse_project_config(&local_path) {
+                        if options.verbose {
+                            println!("  Found service: {} (from Python config)", service.name);
+                        }
+                        service_id = Some(builder.add_service(service));
+                    }
+                }
+            }
+        }
+    }
+
+    // If no service was detected from config files, use repo name
+    if service_id.is_none() {
         if options.verbose {
-            println!("  Found {} code discoveries", discoveries.len());
+            println!("  No service metadata found - using repository name");
+        }
+        // Create a minimal service discovery from the repo name
+        let service = forge_survey::ServiceDiscovery {
+            name: repo.name.clone(),
+            language: detected
+                .iter()
+                .next()
+                .map(|l| l.name.clone())
+                .unwrap_or_else(|| "unknown".to_string()),
+            framework: None,
+            entry_point: "unknown".to_string(),
+            source_file: repo.full_name.clone(),
+            source_line: 0,
+        };
+        service_id = Some(builder.add_service(service));
+    }
+
+    let service_id = service_id.expect("service_id should be set at this point");
+
+    // Run each parser and collect discoveries
+    for parser in &parsers {
+        if options.verbose {
+            let extensions = parser.supported_extensions();
+            println!(
+                "  Parsing {} files...",
+                extensions.join("/")
+            );
         }
 
-        // Process discoveries into graph
-        builder.process_discoveries(discoveries, &service_id);
-    } else if options.verbose {
-        println!("  No package.json found - skipping JavaScript parsing");
+        match parser.parse_repo(&local_path) {
+            Ok(discoveries) => {
+                if options.verbose {
+                    println!("    Found {} code discoveries", discoveries.len());
+                }
+                builder.process_discoveries(discoveries, &service_id);
+            }
+            Err(e) => {
+                // Log warning and continue with other parsers
+                println!(
+                    "    Warning: Parser failed for {}: {}",
+                    parser.supported_extensions().join("/"),
+                    e
+                );
+            }
+        }
     }
 
     Ok(())

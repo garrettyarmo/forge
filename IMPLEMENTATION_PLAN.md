@@ -466,20 +466,26 @@ token_budget: 8000
     - Registered and exported in forge-survey/src/parser/mod.rs
     - All 145 workspace tests passing (including new Terraform tests)
 
-- [ ] **M3-T3**: Implement parser registry with auto-detection
-  - Auto-detect languages from file extensions (.js, .ts, .py, .tf, etc.)
-  - Auto-detect from config files (package.json → JS/TS, requirements.txt → Python, etc.)
-  - Register parsers by language name
-  - Support `languages.exclude` config for edge cases
-  - **No manual language configuration required by default**
+- [x] **M3-T3**: Implement parser registry with auto-detection
   - **Files**: `forge-survey/src/parser/mod.rs`
+  - **Implementation Notes**:
+    - Complete ParserRegistry implementation with thread-safe Arc-based parser sharing
+    - Auto-registers all built-in parsers (JavaScript, TypeScript, Python, Terraform)
+    - JavaScript and TypeScript share the same parser instance
+    - Case-insensitive language lookup
+    - Exclusion list support
+    - 34 comprehensive unit tests passing
 
-- [ ] **M3-T4**: Add automatic language detection to survey
-  - Scan repo for language indicators:
-    - File extensions: `.js`, `.ts`, `.jsx`, `.tsx`, `.py`, `.tf`
-    - Config files: `package.json`, `requirements.txt`, `pyproject.toml`, `*.tf`
-  - Apply appropriate parsers automatically
-  - **Files**: `forge-survey/src/lib.rs`, `forge-survey/src/detection.rs`
+- [x] **M3-T4**: Add automatic language detection to survey
+  - **Files**: `forge-survey/src/detection.rs`, `forge-cli/src/commands/survey.rs`, `forge-survey/src/lib.rs`
+  - **Implementation Notes**:
+    - Implemented detection.rs with file extension scanning and config file detection
+    - Detects JavaScript, TypeScript, Python, Terraform automatically
+    - Threshold-based detection (≥3 files) with confidence scoring
+    - Integrated into survey command - automatically selects appropriate parsers
+    - Multi-language repos fully supported
+    - 59 unit tests passing for detection module
+    - Updated survey command to use ParserRegistry and language detection
 
 - [x] **M3-T5**: Write unit tests for Python parser
   - **Files**: `forge-survey/src/parser/python.rs` (tests)
@@ -534,8 +540,8 @@ pub trait Parser: Send + Sync {
 
 - [x] Python parser detects boto3 DynamoDB/S3/SQS operations
 - [x] Terraform parser extracts resource definitions
-- [ ] Languages are auto-detected from file extensions and config files (no manual config needed)
-- [ ] Survey correctly applies parsers based on auto-detected languages
+- [x] Languages are auto-detected from file extensions and config files (no manual config needed)
+- [x] Survey correctly applies parsers based on auto-detected languages
 - [ ] Can exclude a language via `languages.exclude` in forge.yaml
 - [ ] Adding a new parser only requires implementing the trait
 

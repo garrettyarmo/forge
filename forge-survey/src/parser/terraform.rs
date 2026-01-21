@@ -8,6 +8,7 @@
 //! - aws_lambda_function resources
 
 use super::traits::*;
+use std::any::Any;
 use std::path::Path;
 
 /// Parser for Terraform HCL files
@@ -155,6 +156,10 @@ impl TerraformParser {
 }
 
 impl Parser for TerraformParser {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn supported_extensions(&self) -> &[&str] {
         &["tf"]
     }

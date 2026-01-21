@@ -15,6 +15,7 @@ use super::traits::{
     Discovery, ImportDiscovery, Parser, ParserError, QueueOperationDiscovery, QueueOperationType,
     ServiceDiscovery,
 };
+use std::any::Any;
 use std::path::Path;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Node, Parser as TSParser, Query, QueryCursor};
@@ -640,6 +641,10 @@ impl JavaScriptParser {
 }
 
 impl Parser for JavaScriptParser {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn supported_extensions(&self) -> &[&str] {
         &["js", "jsx", "ts", "tsx", "mjs", "cjs"]
     }
