@@ -25,11 +25,14 @@
 //!
 //! - [`github`]: GitHub API client and repository caching
 //! - [`parser`]: Language-specific code parsers and discovery types
+//! - [`graph_builder`]: Converts parser discoveries into a knowledge graph
 
 pub mod github;
+pub mod graph_builder;
 pub mod parser;
 
 pub use github::{CloneMethod, GitHubClient, GitHubError, RepoCache, RepoInfo};
+pub use graph_builder::GraphBuilder;
 
 // Re-export commonly used parser types for convenience
 pub use parser::{

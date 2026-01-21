@@ -315,10 +315,16 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
   - Detect DynamoDB client patterns
   - **Files**: `forge-survey/src/parser/javascript.rs`
 
-- [ ] **M2-T7**: Implement discovery-to-graph mapper
+- [x] **M2-T7**: Implement discovery-to-graph mapper
   - Convert parser discoveries to graph nodes/edges
   - Deduplicate nodes (same DB, same service)
-  - **Files**: `forge-survey/src/lib.rs`
+  - **Files**: `forge-survey/src/graph_builder.rs`
+  - **Implementation Notes**:
+    - GraphBuilder maintains internal indexes for deduplication (service_map, resource_map)
+    - Supports incremental graph building via from_graph()
+    - Properly handles ReadWrite database operations (creates both READS and WRITES edges)
+    - Records evidence (file:line) for all edges
+    - All 6 tests passing
 
 - [ ] **M2-T8**: Implement `forge survey` command
   - Load config, clone repos, run parsers
