@@ -8,7 +8,7 @@
 //! The forge-survey crate is responsible for:
 //!
 //! - **GitHub Integration**: Discovering and cloning repositories from GitHub organizations
-//! - **Code Parsing**: Analyzing source code using tree-sitter AST parsing (future milestone)
+//! - **Code Parsing**: Analyzing source code using tree-sitter AST parsing
 //! - **Discovery**: Detecting services, APIs, databases, and their relationships
 //!
 //! # Architecture
@@ -24,7 +24,16 @@
 //! # Modules
 //!
 //! - [`github`]: GitHub API client and repository caching
+//! - [`parser`]: Language-specific code parsers and discovery types
 
 pub mod github;
+pub mod parser;
 
 pub use github::{CloneMethod, GitHubClient, GitHubError, RepoCache, RepoInfo};
+
+// Re-export commonly used parser types for convenience
+pub use parser::{
+    ApiCallDiscovery, CloudResourceDiscovery, DatabaseAccessDiscovery, DatabaseOperation,
+    Discovery, ImportDiscovery, Parser, ParserError, QueueOperationDiscovery, QueueOperationType,
+    ServiceDiscovery,
+};

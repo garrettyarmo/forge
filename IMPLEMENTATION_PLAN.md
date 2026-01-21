@@ -301,10 +301,10 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
   - Handle authentication (token from env or config)
   - **Files**: `forge-survey/src/github.rs`
 
-- [ ] **M2-T5**: Define parser trait
+- [x] **M2-T5**: Define parser trait
   - `trait Parser { fn parse(&self, repo_path: &Path) -> Vec<Discovery>; }`
   - `Discovery` enum with Service, Import, APICall, DBAccess variants
-  - **Files**: `forge-survey/src/parser/traits.rs`
+  - **Files**: `forge-survey/src/parser/traits.rs`, `forge-survey/src/parser/mod.rs`
 
 - [ ] **M2-T6**: Implement JavaScript/TypeScript parser
   - tree-sitter-javascript integration
