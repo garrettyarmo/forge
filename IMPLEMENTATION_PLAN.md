@@ -349,10 +349,13 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
   - Use inline test fixtures
   - **Files**: `forge-survey/src/parser/javascript.rs` (tests)
 
-- [ ] **M2-T10**: Write integration test with synthetic JS repo
-  - Create test fixture with sample JS files
-  - Verify correct nodes/edges produced
-  - **Files**: `forge-survey/tests/integration_js.rs`
+- [x] **M2-T10**: Write integration test with synthetic JS repo
+  - Created forge-survey/tests/integration_js.rs with 6 comprehensive integration tests
+  - Tests cover: synthetic repos, HTTP calls, multiple AWS services, TypeScript/framework detection, empty repos
+  - Fixed GraphBuilder to use hyphens instead of colons in fallback resource names (NodeId validation)
+  - Fixed queue edge type for unknown operations (use Publishes instead of Uses)
+  - All 6 integration tests passing, full test suite (121 tests) passing
+  - **Files**: `forge-survey/tests/integration_js.rs`, `forge-survey/src/graph_builder.rs`
 
 ### Dependencies
 

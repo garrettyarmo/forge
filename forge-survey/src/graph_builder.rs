@@ -262,7 +262,7 @@ impl GraphBuilder {
         let db_name = db
             .table_name
             .clone()
-            .unwrap_or_else(|| format!("{}:unknown", db.db_type));
+            .unwrap_or_else(|| format!("{}-unknown", db.db_type));
         let namespace = self
             .current_repo
             .clone()
@@ -324,7 +324,7 @@ impl GraphBuilder {
         let queue_name = queue
             .queue_name
             .clone()
-            .unwrap_or_else(|| format!("{}:unknown", queue.queue_type));
+            .unwrap_or_else(|| format!("{}-unknown", queue.queue_type));
         let namespace = self
             .current_repo
             .clone()
@@ -355,7 +355,7 @@ impl GraphBuilder {
         let edge_type = match queue.operation {
             QueueOperationType::Publish => EdgeType::Publishes,
             QueueOperationType::Subscribe => EdgeType::Subscribes,
-            QueueOperationType::Unknown => EdgeType::Uses,
+            QueueOperationType::Unknown => EdgeType::Publishes, // Default to publish for unknown
         };
 
         let mut edge = Edge::new(service_id.clone(), queue_id, edge_type)
@@ -372,7 +372,7 @@ impl GraphBuilder {
         let resource_name = resource
             .resource_name
             .clone()
-            .unwrap_or_else(|| format!("{}:unknown", resource.resource_type));
+            .unwrap_or_else(|| format!("{}-unknown", resource.resource_type));
         let namespace = self
             .current_repo
             .clone()
