@@ -442,20 +442,18 @@ token_budget: 8000
 ### Tasks
 
 - [x] **M3-T1**: Implement Python parser
-  - tree-sitter-python integration
-  - Parse import statements
-  - Detect boto3 patterns (DynamoDB, S3, SQS, SNS)
-  - Detect requests/httpx HTTP calls
-  - **Files**: `forge-survey/src/parser/python.rs`
-  - **Implementation Notes**:
-    - Complete Python parser implementation in forge-survey/src/parser/python.rs
-    - Detects boto3 usage (DynamoDB, S3, SQS, SNS, Lambda, EventBridge)
-    - Detects HTTP clients (requests, httpx)
-    - Detects DynamoDB operations with table name extraction
-    - Service detection from pyproject.toml, setup.py, requirements.txt
-    - All 7 unit tests passing
-    - tree-sitter-python = "0.23" dependency already in Cargo.toml
-    - Properly exported in forge-survey/src/parser/mod.rs
+  - tree-sitter-python dependency added to Cargo.toml
+  - Complete PythonParser implementation in forge-survey/src/parser/python.rs
+  - Detects imports (import X, from X import Y)
+  - Detects boto3 client/resource calls (dynamodb, s3, sqs, sns, lambda, eventbridge)
+  - Detects HTTP clients (requests, httpx)
+  - Detects DynamoDB methods (get_item, put_item, update_item, delete_item, query, scan)
+  - Parses pyproject.toml, setup.py, requirements.txt for service detection
+  - Detects frameworks (FastAPI, Flask, Django, Chalice, Starlette)
+  - Finds entry points (main.py, app.py, run.py, etc.)
+  - 7 comprehensive unit tests passing
+  - Registered in parser mod.rs and exported
+  - All 140 workspace tests passing
 
 - [ ] **M3-T2**: Implement Terraform parser
   - Parse HCL files with tree-sitter-hcl or hcl2 crate
