@@ -306,7 +306,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
   - `Discovery` enum with Service, Import, APICall, DBAccess variants
   - **Files**: `forge-survey/src/parser/traits.rs`, `forge-survey/src/parser/mod.rs`
 
-- [ ] **M2-T6**: Implement JavaScript/TypeScript parser
+- [x] **M2-T6**: Implement JavaScript/TypeScript parser
   - tree-sitter-javascript integration
   - Detect service entry points (package.json scripts, exports)
   - Parse import/require statements
@@ -326,7 +326,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
   - Progress reporting
   - **Files**: `forge-cli/src/commands/survey.rs`
 
-- [ ] **M2-T9**: Write unit tests for JavaScript parser
+- [x] **M2-T9**: Write unit tests for JavaScript parser
   - Test import detection
   - Test AWS SDK pattern detection
   - Test HTTP client detection
@@ -343,12 +343,12 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 ```toml
 # forge-survey/Cargo.toml
 [dependencies]
-tree-sitter = "0.20"
-tree-sitter-javascript = "0.20"
-octocrab = "0.32"  # GitHub API
+tree-sitter = "0.24"
+tree-sitter-javascript = "0.23"
+streaming-iterator = "0.1"  # Required for tree-sitter 0.24+ QueryMatches iteration
+octocrab = "0.44"  # GitHub API
 tokio = { version = "1.0", features = ["full"] }
-walkdir = "2.4"
-regex = "1.10"
+walkdir = "2.5"
 forge-graph = { path = "../forge-graph" }
 
 # forge-cli/Cargo.toml
