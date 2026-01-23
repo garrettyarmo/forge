@@ -27,6 +27,7 @@ use clap::{Parser, Subcommand};
 
 mod commands;
 mod config;
+pub mod serializers;
 
 /// Forge - Survey and map software ecosystems
 #[derive(Parser)]
@@ -156,10 +157,15 @@ fn main() {
             budget,
             output,
         } => {
-            // TODO: Implement map command (M5)
-            let _ = (config, input, format, service, budget, output);
-            println!("Map command not yet implemented. Coming in Milestone 5.");
-            Ok(())
+            let options = commands::MapOptions {
+                config,
+                input,
+                format,
+                service,
+                budget,
+                output,
+            };
+            commands::run_map(options).map_err(|e| e.to_string())
         }
     };
 

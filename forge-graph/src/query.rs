@@ -427,7 +427,8 @@ impl ForgeGraph {
         let mut nodes: Vec<ScoredNode<'_>> = node_scores
             .iter()
             .filter_map(|(id, &(score, depth))| {
-                self.get_node(id).map(|node| ScoredNode { node, score, depth })
+                self.get_node(id)
+                    .map(|node| ScoredNode { node, score, depth })
             })
             .collect();
 
@@ -999,7 +1000,10 @@ mod tests {
         // Verify nodes are sorted by relevance (descending)
         let scores: Vec<f64> = subgraph.nodes.iter().map(|n| n.score).collect();
         for i in 1..scores.len() {
-            assert!(scores[i] <= scores[i - 1], "Nodes should be sorted by score descending");
+            assert!(
+                scores[i] <= scores[i - 1],
+                "Nodes should be sorted by score descending"
+            );
         }
     }
 

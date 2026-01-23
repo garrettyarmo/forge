@@ -38,6 +38,20 @@ Design documentation for Forge, a reusable platform for surveying and mapping so
 - **Environment overrides**: Supports FORGE_* environment variables
 - **Status**: Configuration and init command complete (M2-T1, M2-T2, M2-T3)
 
+### Serialization System (forge-cli)
+- **MarkdownSerializer**: Human-readable output optimized for LLM context consumption
+  - Service-centric sections with dependency tables
+  - Business context display (purpose, owner, history, gotchas)
+  - Implicit coupling risk summary
+  - Subgraph serialization with relevance indicators
+  - Status: Complete (M5-T2)
+- **forge map command**: Serialize knowledge graphs to various formats
+  - `--format` flag (markdown implemented, json/mermaid planned)
+  - `--service` flag for filtering to specific services
+  - `--output` flag for file output (default: stdout)
+  - Relevance-scored subgraph extraction
+  - Status: Markdown format complete (M5-T7)
+
 ## Survey Phase Implementation
 
 The survey phase is **purely deterministic** using tree-sitter AST parsing only - no LLM calls. This ensures:
@@ -75,16 +89,33 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
   - ✅ M2-T8: forge survey command
   - ✅ M2-T9: JavaScript parser unit tests
   - ✅ M2-T10: Integration test with synthetic JS repo (6 tests passing)
-- ✅ **Milestone 3 (Multi-Language Support)**: In Progress
+- ✅ **Milestone 3 (Multi-Language Support)**: Complete
   - ✅ M3-T1: Python parser
   - ✅ M3-T2: Terraform parser
+  - ✅ M3-T3: Parser registry with auto-detection
+  - ✅ M3-T4: Automatic language detection in survey
   - ✅ M3-T5: Python parser tests
   - ✅ M3-T6: Terraform parser tests
+  - ✅ M3-T7: Multi-language integration tests
+- ✅ **Milestone 4 (Implicit Coupling)**: Complete
+  - ✅ M4-T1: Shared resource detection
+  - ✅ M4-T2: Ownership inference
+  - ✅ M4-T3: IMPLICITLY_COUPLED edge generation
+  - ✅ M4-T4: Coupling analysis in survey pipeline
+  - ✅ M4-T5: Coupling detection unit tests
+  - ✅ M4-T6: Coupling integration tests
+- 🔄 **Milestone 5 (Serialization)**: In Progress
+  - ✅ M5-T1: Subgraph extraction with relevance scoring
+  - ✅ M5-T2: Markdown serializer
+  - ✅ M5-T7: forge map command (markdown format)
+  - ⏳ M5-T3: JSON serializer (planned)
+  - ⏳ M5-T4: Mermaid serializer (planned)
+  - ⏳ M5-T5: Token counting (planned)
+  - ⏳ M5-T6: Token-budgeted output (planned)
+  - ⏳ M5-T8: Serializer tests (partial)
 
 ### Next Up
-- Milestone 3: Terraform parser, language auto-detection
-- Milestone 4: Implicit coupling detection
-- Milestone 5: Multiple output formats (Markdown, JSON, Mermaid) with token budgeting
+- Milestone 5: JSON serializer, Mermaid serializer, token budgeting
 - Milestone 6: LLM-assisted business context interview
 - Milestone 7: Polish (incremental survey, CLI UX, documentation)
 
