@@ -30,7 +30,7 @@ impl TerraformParser {
         for block in body.blocks() {
             let ident: &str = block.identifier();
             if ident == "resource" {
-                if let Some(discovery) = self.process_resource_block(&block, path) {
+                if let Some(discovery) = self.process_resource_block(block, path) {
                     discoveries.push(discovery);
                 }
             }

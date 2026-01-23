@@ -158,7 +158,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     let mut builder = GraphBuilder::new();
 
     // Create parser registry once
-    let registry = ParserRegistry::new().map_err(|e| SurveyError::ParserError(e))?;
+    let registry = ParserRegistry::new().map_err(SurveyError::ParserError)?;
 
     // Setup repository cache for GitHub repos
     let cache = RepoCache::new(

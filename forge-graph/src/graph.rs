@@ -285,6 +285,17 @@ impl ForgeGraph {
             .filter(move |e| e.edge_type == edge_type)
     }
 
+    /// Check if any edge exists between two nodes.
+    pub fn has_edge_between(&self, source: NodeId, target: NodeId) -> bool {
+        if let (Some(&source_idx), Some(&target_idx)) =
+            (self.node_index.get(&source), self.node_index.get(&target))
+        {
+            self.inner.find_edge(source_idx, target_idx).is_some()
+        } else {
+            false
+        }
+    }
+
     // === Serialization ===
 
     /// Serialize the graph to a JSON file.

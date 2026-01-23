@@ -12,7 +12,7 @@
 
 use super::traits::{
     ApiCallDiscovery, CloudResourceDiscovery, DatabaseAccessDiscovery, DatabaseOperation,
-    Discovery, ImportDiscovery, Parser, ParserError, QueueOperationDiscovery, QueueOperationType,
+    Discovery, ImportDiscovery, Parser, ParserError,
     ServiceDiscovery,
 };
 use std::any::Any;
@@ -357,21 +357,14 @@ impl JavaScriptParser {
                 source_line: line,
             }));
         } else if module_lower.contains("sqs") {
-            discoveries.push(Discovery::QueueOperation(QueueOperationDiscovery {
-                queue_type: "sqs".to_string(),
-                queue_name: None,
-                operation: QueueOperationType::Unknown,
-                source_file: path.to_string_lossy().to_string(),
-                source_line: line,
-            }));
+            // NOTE: Don't create a QueueOperation here!
+            // SQS queue discoveries should be created from actual sendMessage/receiveMessage calls
+            // where we can extract the queue name from QueueUrl.
+            // Creating one here with queue_name: None leads to "sqs-unknown" nodes
+            // that can't be properly deduplicated.
         } else if module_lower.contains("sns") {
-            discoveries.push(Discovery::QueueOperation(QueueOperationDiscovery {
-                queue_type: "sns".to_string(),
-                queue_name: None,
-                operation: QueueOperationType::Unknown,
-                source_file: path.to_string_lossy().to_string(),
-                source_line: line,
-            }));
+            // NOTE: Don't create a QueueOperation here for the same reason as SQS.
+            // SNS topic discoveries should be created from actual publish calls.
         } else if module_lower.contains("s3") {
             discoveries.push(Discovery::CloudResourceUsage(CloudResourceDiscovery {
                 resource_type: "s3".to_string(),
@@ -435,7 +428,7 @@ impl JavaScriptParser {
         discoveries
     }
 
-    /// Walk AST looking for specific method calls.
+    /// Walk AST looking for specific method calls on DynamoDB-like objects.
     fn walk_for_method_calls(
         &self,
         node: Node,
@@ -450,22 +443,31 @@ impl JavaScriptParser {
                     if let Some(prop) = func.child_by_field_name("property") {
                         let method_name = prop.utf8_text(content.as_bytes()).unwrap_or("");
 
-                        for (method, operation) in methods {
-                            if method_name == *method {
-                                // Try to extract table name from arguments
-                                let table_name = self.extract_table_name_from_call(&node, content);
+                        // Check if the object looks like a DynamoDB client
+                        // to avoid false positives like axios.get() being detected as DynamoDB
+                        if let Some(obj) = func.child_by_field_name("object") {
+                            if !self.is_dynamodb_like_object(obj, content) {
+                                // Skip - not a DynamoDB client
+                            } else {
+                                for (method, operation) in methods {
+                                    if method_name == *method {
+                                        // Try to extract table name from arguments
+                                        let table_name =
+                                            self.extract_table_name_from_call(&node, content);
 
-                                discoveries.push(Discovery::DatabaseAccess(
-                                    DatabaseAccessDiscovery {
-                                        db_type: "dynamodb".to_string(),
-                                        table_name,
-                                        operation: *operation,
-                                        detection_method: "method-call".to_string(),
-                                        source_file: path.to_string_lossy().to_string(),
-                                        source_line: node.start_position().row as u32 + 1,
-                                    },
-                                ));
-                                break;
+                                        discoveries.push(Discovery::DatabaseAccess(
+                                            DatabaseAccessDiscovery {
+                                                db_type: "dynamodb".to_string(),
+                                                table_name,
+                                                operation: *operation,
+                                                detection_method: "method-call".to_string(),
+                                                source_file: path.to_string_lossy().to_string(),
+                                                source_line: node.start_position().row as u32 + 1,
+                                            },
+                                        ));
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
@@ -479,6 +481,45 @@ impl JavaScriptParser {
                 self.walk_for_method_calls(child, content, path, methods, discoveries);
             }
         }
+    }
+
+    /// Check if an AST node represents a DynamoDB-like object.
+    /// This helps avoid false positives like axios.get() being detected as DynamoDB.
+    fn is_dynamodb_like_object(&self, node: Node, content: &str) -> bool {
+        let text = node.utf8_text(content.as_bytes()).unwrap_or("").to_lowercase();
+
+        // Common DynamoDB client variable names
+        let dynamodb_names = [
+            "dynamodb",
+            "ddb",
+            "dynamo",
+            "docclient",
+            "doc_client",
+            "docClient",
+            "documentclient",
+            "document_client",
+            "documentClient",
+            "dynamodbclient",
+            "dynamodb_client",
+            "dynamoDBClient",
+            "table",
+        ];
+
+        // Check if the identifier contains any DynamoDB-related names
+        for name in &dynamodb_names {
+            if text.contains(&name.to_lowercase()) {
+                return true;
+            }
+        }
+
+        // Also check for new DynamoDB() or new DocumentClient() patterns
+        if node.kind() == "new_expression"
+            && (text.contains("dynamodb") || text.contains("documentclient"))
+        {
+            return true;
+        }
+
+        false
     }
 
     /// Try to extract table name from a DynamoDB call.
@@ -786,6 +827,9 @@ import data from 'data-package';
     #[test]
     fn test_detect_aws_sdk_v3_dynamodb() {
         let parser = create_parser();
+        // AWS SDK v3 imports - tests that imports are correctly detected
+        // Note: Resource discoveries (DynamoDB, SQS) require actual method calls,
+        // not just imports, to avoid creating "unknown" nodes that can't be deduplicated.
         let content = r#"
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
@@ -794,32 +838,29 @@ import { SQSClient } from '@aws-sdk/client-sqs';
 
         let discoveries = parser.parse_file(Path::new("test.js"), content).unwrap();
 
-        let db_accesses: Vec<_> = discoveries
+        // AWS SDK imports should be detected
+        let imports: Vec<_> = discoveries
             .iter()
             .filter_map(|d| match d {
-                Discovery::DatabaseAccess(db) => Some(db),
+                Discovery::Import(i) => Some(i),
                 _ => None,
             })
             .collect();
 
         assert!(
-            db_accesses.iter().any(|d| d.db_type == "dynamodb"),
-            "Should detect DynamoDB access"
+            imports.iter().any(|i| i.module == "@aws-sdk/client-dynamodb"),
+            "Should detect DynamoDB client import"
         );
-
-        let queue_ops: Vec<_> = discoveries
-            .iter()
-            .filter_map(|d| match d {
-                Discovery::QueueOperation(q) => Some(q),
-                _ => None,
-            })
-            .collect();
-
         assert!(
-            queue_ops.iter().any(|q| q.queue_type == "sqs"),
-            "Should detect SQS usage"
+            imports.iter().any(|i| i.module == "@aws-sdk/client-s3"),
+            "Should detect S3 client import"
+        );
+        assert!(
+            imports.iter().any(|i| i.module == "@aws-sdk/client-sqs"),
+            "Should detect SQS client import"
         );
 
+        // S3 still creates a CloudResourceUsage from import (unlike DynamoDB/SQS which need method calls)
         let cloud_resources: Vec<_> = discoveries
             .iter()
             .filter_map(|d| match d {
@@ -862,11 +903,12 @@ const dynamodb = new AWS.DynamoDB();
     #[test]
     fn test_detect_dynamodb_operations() {
         let parser = create_parser();
+        // Use DynamoDB-like variable name so detection recognizes this as DynamoDB
         let content = r#"
-const result = await client.get({ TableName: 'users', Key: { id } });
-await client.put({ TableName: 'users', Item: user });
-const items = await client.query({ TableName: 'orders' });
-await client.delete({ TableName: 'users', Key: { id } });
+const result = await dynamoClient.get({ TableName: 'users', Key: { id } });
+await dynamoClient.put({ TableName: 'users', Item: user });
+const items = await dynamoClient.query({ TableName: 'orders' });
+await dynamoClient.delete({ TableName: 'users', Key: { id } });
 "#;
 
         let discoveries = parser.parse_file(Path::new("test.js"), content).unwrap();
@@ -896,8 +938,9 @@ await client.delete({ TableName: 'users', Key: { id } });
     #[test]
     fn test_detect_dynamodb_table_name() {
         let parser = create_parser();
+        // Use DynamoDB-like variable name so detection recognizes this as DynamoDB
         let content = r#"
-await client.get({ TableName: 'users-table', Key: { id: '123' } });
+await docClient.get({ TableName: 'users-table', Key: { id: '123' } });
 "#;
 
         let discoveries = parser.parse_file(Path::new("test.js"), content).unwrap();
@@ -1182,23 +1225,26 @@ const data = await fetch('https://api.example.com/data');
     #[test]
     fn test_sns_detection() {
         let parser = create_parser();
+        // SNS import detection - actual publish operations would be needed
+        // to create QueueOperation discoveries with topic names.
         let content = r#"
 import { SNSClient } from '@aws-sdk/client-sns';
 "#;
 
         let discoveries = parser.parse_file(Path::new("test.js"), content).unwrap();
 
-        let queue_ops: Vec<_> = discoveries
+        // Should detect the SNS client import
+        let imports: Vec<_> = discoveries
             .iter()
             .filter_map(|d| match d {
-                Discovery::QueueOperation(q) => Some(q),
+                Discovery::Import(i) => Some(i),
                 _ => None,
             })
             .collect();
 
         assert!(
-            queue_ops.iter().any(|q| q.queue_type == "sns"),
-            "Should detect SNS usage"
+            imports.iter().any(|i| i.module == "@aws-sdk/client-sns"),
+            "Should detect SNS client import"
         );
     }
 

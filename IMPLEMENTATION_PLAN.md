@@ -504,10 +504,22 @@ token_budget: 8000
     - Tests for multi-resource files
     - All tests passing
 
-- [ ] **M3-T7**: Write integration test with mixed-language repos
+- [x] **M3-T7**: Write integration test with mixed-language repos
   - Create test fixtures with JS, Python, and Terraform
   - Verify all languages contribute to graph
   - **Files**: `forge-survey/tests/integration_multi.rs`
+  - **Implementation Notes**:
+    - Created comprehensive integration test in `forge-survey/tests/integration_multi.rs`
+    - Two test functions: `test_survey_multi_language_repo` and `test_survey_with_language_exclusion`
+    - Tests multi-language survey with JavaScript, Python, and Terraform
+    - Verifies language auto-detection from config files and file extensions
+    - Tests database deduplication across languages
+    - Tests service relationship detection
+    - Tests language exclusion functionality
+    - Bug fixes discovered and implemented during testing:
+      - Fixed Python parser to extract DynamoDB table names from `dynamodb.Table('name')` pattern
+      - Fixed JavaScript parser false positive where `axios.get()` was incorrectly detected as DynamoDB operation
+      - Removed phantom resource discovery from import-only detection (DynamoDB, SQS, SNS now require actual method calls)
 
 ### Dependencies
 
@@ -542,7 +554,7 @@ pub trait Parser: Send + Sync {
 - [x] Terraform parser extracts resource definitions
 - [x] Languages are auto-detected from file extensions and config files (no manual config needed)
 - [x] Survey correctly applies parsers based on auto-detected languages
-- [ ] Can exclude a language via `languages.exclude` in forge.yaml
+- [x] Can exclude a language via `languages.exclude` in forge.yaml
 - [ ] Adding a new parser only requires implementing the trait
 
 ---

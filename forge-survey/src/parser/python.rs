@@ -15,6 +15,7 @@ use super::traits::{
     ServiceDiscovery,
 };
 use std::any::Any;
+use std::collections::HashMap;
 use std::path::Path;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Language, Node, Parser as TSParser, Query, QueryCursor};
@@ -215,7 +216,7 @@ impl PythonParser {
             }
             // Extract package name (before any version specifier)
             let package = line
-                .split(|c| c == '=' || c == '<' || c == '>' || c == '[' || c == ';')
+                .split(['=', '<', '>', '[', ';'])
                 .next()
                 .unwrap_or("")
                 .trim();
@@ -525,18 +526,15 @@ impl PythonParser {
         detection_method: &str,
     ) {
         let source_file = path.to_string_lossy().to_string();
-        let detection = format!("boto3.{}", detection_method);
+        let _detection = format!("boto3.{}", detection_method);
 
         match service {
             "dynamodb" => {
-                discoveries.push(Discovery::DatabaseAccess(DatabaseAccessDiscovery {
-                    db_type: "dynamodb".to_string(),
-                    table_name: None, // Will be extracted from method calls
-                    operation: DatabaseOperation::Unknown,
-                    detection_method: detection,
-                    source_file,
-                    source_line: line,
-                }));
+                // NOTE: Don't create a DatabaseAccessDiscovery here!
+                // DynamoDB discoveries are handled by detect_dynamodb_methods() which
+                // extracts the actual table name from method calls or Table() assignments.
+                // Creating one here with table_name: None would result in a "dynamodb-unknown"
+                // node that can't be properly deduplicated with actual table operations.
             }
             "s3" => {
                 discoveries.push(Discovery::CloudResourceUsage(CloudResourceDiscovery {
@@ -668,9 +666,104 @@ impl PythonParser {
     ) -> Vec<Discovery> {
         let mut discoveries = Vec::new();
 
-        self.walk_for_dynamodb_methods(tree.root_node(), content, path, &mut discoveries);
+        // First pass: collect variable -> table name mappings
+        // e.g., `table = dynamodb.Table('my-table')` maps "table" -> "my-table"
+        let table_mappings = self.collect_table_assignments(tree.root_node(), content);
+
+        self.walk_for_dynamodb_methods(
+            tree.root_node(),
+            content,
+            path,
+            &mut discoveries,
+            &table_mappings,
+        );
 
         discoveries
+    }
+
+    /// Collect table variable assignments (e.g., `table = dynamodb.Table('name')`).
+    /// Returns a mapping of variable name to table name.
+    fn collect_table_assignments(&self, node: Node, content: &str) -> HashMap<String, String> {
+        let mut mappings = HashMap::new();
+        self.walk_for_table_assignments(node, content, &mut mappings);
+        mappings
+    }
+
+    /// Walk AST looking for table variable assignments.
+    fn walk_for_table_assignments(
+        &self,
+        node: Node,
+        content: &str,
+        mappings: &mut HashMap<String, String>,
+    ) {
+        // Look for assignment patterns:
+        // - expression_statement containing assignment (Python 3)
+        // - assignment itself
+        if node.kind() == "expression_statement" || node.kind() == "assignment" {
+            self.check_table_assignment(node, content, mappings);
+        }
+
+        // Recursively walk children
+        for i in 0..node.named_child_count() {
+            if let Some(child) = node.named_child(i) {
+                self.walk_for_table_assignments(child, content, mappings);
+            }
+        }
+    }
+
+    /// Check if a node is a table assignment and extract the mapping.
+    fn check_table_assignment(
+        &self,
+        node: Node,
+        content: &str,
+        mappings: &mut HashMap<String, String>,
+    ) {
+        // Find the assignment node (may be direct or child of expression_statement)
+        let assignment = if node.kind() == "assignment" {
+            Some(node)
+        } else {
+            node.named_child(0).filter(|c| c.kind() == "assignment")
+        };
+
+        if let Some(assignment) = assignment {
+            // Get the left side (variable name)
+            let left = assignment.child_by_field_name("left");
+            // Get the right side (should be a call to .Table('name'))
+            let right = assignment.child_by_field_name("right");
+
+            if let (Some(left_node), Some(right_node)) = (left, right) {
+                // Left should be an identifier
+                if left_node.kind() == "identifier" {
+                    let var_name = left_node.utf8_text(content.as_bytes()).unwrap_or("");
+
+                    // Right should be a call expression
+                    if right_node.kind() == "call" {
+                        if let Some(table_name) = self.extract_table_name_from_call(right_node, content) {
+                            mappings.insert(var_name.to_string(), table_name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Extract table name from a call like `dynamodb.Table('my-table')` or `resource.Table('my-table')`.
+    fn extract_table_name_from_call(&self, call_node: Node, content: &str) -> Option<String> {
+        // Check if this is a .Table() call
+        if let Some(function_node) = call_node.child_by_field_name("function") {
+            if function_node.kind() == "attribute" {
+                if let Some(attr_node) = function_node.child_by_field_name("attribute") {
+                    let method = attr_node.utf8_text(content.as_bytes()).unwrap_or("");
+                    if method == "Table" {
+                        // Extract the first argument as the table name
+                        if let Some(args_node) = call_node.child_by_field_name("arguments") {
+                            return self.extract_first_string_arg(args_node, content);
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Walk AST looking for DynamoDB method calls.
@@ -680,6 +773,7 @@ impl PythonParser {
         content: &str,
         path: &Path,
         discoveries: &mut Vec<Discovery>,
+        table_mappings: &HashMap<String, String>,
     ) {
         if node.kind() == "call" {
             if let Some(function_node) = node.child_by_field_name("function") {
@@ -703,13 +797,29 @@ impl PythonParser {
 
                         for (method_name, operation) in &dynamodb_methods {
                             if method == *method_name {
-                                // Try to extract table name from arguments
-                                let table_name =
+                                // Try to extract table name from arguments first
+                                let mut table_name =
                                     if let Some(args_node) = node.child_by_field_name("arguments") {
                                         self.extract_table_name(args_node, content)
                                     } else {
                                         None
                                     };
+
+                                // If no table name from arguments, try to get it from
+                                // the object variable (e.g., `table` in `table.get_item(...)`)
+                                if table_name.is_none() {
+                                    if let Some(object_node) =
+                                        function_node.child_by_field_name("object")
+                                    {
+                                        if object_node.kind() == "identifier" {
+                                            let var_name = object_node
+                                                .utf8_text(content.as_bytes())
+                                                .unwrap_or("");
+                                            table_name =
+                                                table_mappings.get(var_name).cloned();
+                                        }
+                                    }
+                                }
 
                                 discoveries.push(Discovery::DatabaseAccess(
                                     DatabaseAccessDiscovery {
@@ -732,7 +842,7 @@ impl PythonParser {
         // Recursively walk children
         for i in 0..node.named_child_count() {
             if let Some(child) = node.named_child(i) {
-                self.walk_for_dynamodb_methods(child, content, path, discoveries);
+                self.walk_for_dynamodb_methods(child, content, path, discoveries, table_mappings);
             }
         }
     }
@@ -988,11 +1098,14 @@ result = dynamodb.get_item(TableName='users', Key={'id': {'S': '123'}})
     #[test]
     fn test_detect_boto3_dynamodb_resource() {
         let parser = create_parser();
+        // DynamoDB detection requires actual method calls (get_item, put_item, etc.)
+        // not just boto3.resource('dynamodb') - this avoids "dynamodb-unknown" nodes
         let content = r#"
 import boto3
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('users')
+result = table.get_item(Key={'id': '123'})
 "#;
 
         let discoveries = parser.parse_file(Path::new("test.py"), content).unwrap();
@@ -1008,8 +1121,8 @@ table = dynamodb.Table('users')
         assert!(
             db_accesses
                 .iter()
-                .any(|d| d.db_type == "dynamodb" && d.detection_method.contains("resource")),
-            "Should detect DynamoDB resource"
+                .any(|d| d.db_type == "dynamodb" && d.table_name == Some("users".to_string())),
+            "Should detect DynamoDB table access with table name 'users'"
         );
     }
 
@@ -1822,9 +1935,12 @@ client = session.client('dynamodb')
     #[test]
     fn test_line_numbers_are_correct() {
         let parser = create_parser();
+        // DynamoDB detection requires actual method calls, not just boto3.client()
         let content = r#"import boto3
 
-dynamodb = boto3.client('dynamodb')
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('users')
+result = table.get_item(Key={'id': '123'})
 "#;
 
         let discoveries = parser.parse_file(Path::new("test.py"), content).unwrap();
@@ -1850,8 +1966,8 @@ dynamodb = boto3.client('dynamodb')
 
         assert!(!db_accesses.is_empty());
         assert_eq!(
-            db_accesses[0].source_line, 3,
-            "boto3.client should be on line 3"
+            db_accesses[0].source_line, 5,
+            "table.get_item should be on line 5"
         );
     }
 
