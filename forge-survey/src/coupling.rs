@@ -712,6 +712,10 @@ impl<'a> CouplingAnalyzer<'a> {
     ///
     /// Services are implicitly coupled when they both access the same resource
     /// without an explicit API contract between them.
+    ///
+    /// Note: The owner IS included in coupling detection because they are still
+    /// implicitly coupled with other services accessing the same resource.
+    /// Owner exclusion only applies to READS_SHARED/WRITES_SHARED edge generation.
     fn detect_implicit_couplings(&self) -> Vec<ImplicitCoupling> {
         let mut couplings = Vec::new();
         let mut processed_pairs: HashSet<(NodeId, NodeId)> = HashSet::new();
@@ -720,7 +724,7 @@ impl<'a> CouplingAnalyzer<'a> {
             let readers = self.access_map.get_readers(resource_id);
             let writers = self.access_map.get_writers(resource_id);
 
-            // All services accessing this resource
+            // All services accessing this resource (including owner - they are still coupled!)
             let all_services: HashSet<_> = readers.iter().chain(writers.iter()).cloned().collect();
 
             // Skip if only one service
@@ -728,15 +732,8 @@ impl<'a> CouplingAnalyzer<'a> {
                 continue;
             }
 
-            // Get owner to exclude from "shared" consideration
-            let owner = self.access_map.get_owner(resource_id);
-
-            // Create coupling between each pair of non-owner services
-            let services: Vec<_> = all_services
-                .iter()
-                .filter(|s| owner.map(|o| o != **s).unwrap_or(true))
-                .cloned()
-                .collect();
+            // Create coupling between each pair of services (owner included)
+            let services: Vec<_> = all_services.iter().cloned().collect();
 
             for i in 0..services.len() {
                 for j in (i + 1)..services.len() {

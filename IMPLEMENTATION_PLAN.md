@@ -597,11 +597,16 @@ pub trait Parser: Send + Sync {
     - Implemented CouplingAnalysisResult with apply_to_graph() method
     - Created ImplicitCoupling, SharedAccess, CouplingRisk types
 
-- [ ] **M4-T4**: Add coupling analysis to survey pipeline
+- [x] **M4-T4**: Add coupling analysis to survey pipeline
   - Run after all parsers complete
   - Add coupling edges to graph
-  - **Files**: `forge-survey/src/lib.rs`
-  - **Status**: Not yet integrated into survey command
+  - **Files**: `forge-cli/src/commands/survey.rs`
+  - **Implementation Notes**:
+    - CouplingAnalyzer is instantiated after graph building
+    - analyzer.analyze() identifies implicit couplings, shared reads, and shared writes
+    - Results are applied back to the graph via coupling_result.apply_to_graph()
+    - High-risk couplings are reported with special formatting
+    - Verbose mode shows detailed coupling information
 
 - [x] **M4-T5**: Write unit tests for coupling detection
   - Test ownership inference
@@ -618,11 +623,25 @@ pub trait Parser: Send + Sync {
       - Edge cases (1 test)
     - All tests passing (197 total workspace tests)
 
-- [ ] **M4-T6**: Write integration test for coupling scenarios
+- [x] **M4-T6**: Write integration test for coupling scenarios
   - Create fixtures with shared DynamoDB patterns
   - Verify IMPLICITLY_COUPLED edges created
   - **Files**: `forge-survey/tests/integration_coupling.rs`
-  - **Status**: Not yet implemented
+  - **Implementation Notes**:
+    - 7 comprehensive integration tests covering:
+      - test_coupling_shared_dynamodb_table: Services sharing DynamoDB (write/read → Medium risk)
+      - test_coupling_shared_sqs_queue: Services sharing SQS queue (publisher/consumer)
+      - test_high_risk_multiple_writers: Multiple writers → High risk
+      - test_coupling_edges_applied_to_graph: Edge types verification
+      - test_coupling_python_services: Cross-language coupling (Python services)
+      - test_no_coupling_when_no_shared_resources: No false positives
+      - test_low_risk_both_readers: Both readers → Low risk
+    - Added AWS SDK v3 Command pattern detection to JavaScript parser:
+      - DynamoDB commands: GetItemCommand, PutItemCommand, UpdateItemCommand, etc.
+      - SQS commands: SendMessageCommand, ReceiveMessageCommand
+    - Fixed coupling detection to include owner in coupling pairs (was incorrectly excluding owner)
+    - Removed phantom DynamoDB discoveries from imports (only detect from actual operations)
+    - All 7 tests passing
 
 ### Acceptance Criteria
 
@@ -630,8 +649,8 @@ pub trait Parser: Send + Sync {
 - [x] Services sharing SQS queues get IMPLICITLY_COUPLED edge
 - [x] Ownership is correctly inferred from Terraform definitions
 - [x] Coupling reasons are recorded in edge metadata
-- [ ] Graph visualizes coupling relationships
-- [ ] Coupling analysis integrated into survey command pipeline
+- [ ] Graph visualizes coupling relationships (M5 task - serialization)
+- [x] Coupling analysis integrated into survey command pipeline
 
 ---
 

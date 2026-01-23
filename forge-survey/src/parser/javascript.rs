@@ -12,7 +12,8 @@
 
 use super::traits::{
     ApiCallDiscovery, CloudResourceDiscovery, DatabaseAccessDiscovery, DatabaseOperation,
-    Discovery, ImportDiscovery, Parser, ParserError, ServiceDiscovery,
+    Discovery, ImportDiscovery, Parser, ParserError, QueueOperationDiscovery, QueueOperationType,
+    ServiceDiscovery,
 };
 use std::any::Any;
 use std::path::Path;
@@ -343,18 +344,11 @@ impl JavaScriptParser {
 
         // Determine the AWS service
         if module_lower.contains("dynamodb") {
-            discoveries.push(Discovery::DatabaseAccess(DatabaseAccessDiscovery {
-                db_type: "dynamodb".to_string(),
-                table_name: None,
-                operation: DatabaseOperation::Unknown,
-                detection_method: if module.contains("@aws-sdk") {
-                    "aws-sdk-v3".to_string()
-                } else {
-                    "aws-sdk-v2".to_string()
-                },
-                source_file: path.to_string_lossy().to_string(),
-                source_line: line,
-            }));
+            // NOTE: Don't create a DatabaseAccess discovery here!
+            // DynamoDB discoveries should be created from actual method calls or SDK v3 commands
+            // where we can extract the table name. Creating one here with table_name: None
+            // leads to "dynamodb-unknown" nodes that can't be properly deduplicated
+            // and pollute coupling detection.
         } else if module_lower.contains("sqs") {
             // NOTE: Don't create a QueueOperation here!
             // SQS queue discoveries should be created from actual sendMessage/receiveMessage calls
@@ -564,6 +558,185 @@ impl JavaScriptParser {
         None
     }
 
+    /// Detect AWS SDK v3 Command pattern usage.
+    ///
+    /// AWS SDK v3 uses a command-based pattern where operations are created as
+    /// command objects and sent via `client.send(command)`. For example:
+    ///
+    /// ```javascript
+    /// const command = new PutItemCommand({ TableName: 'users', Item: {...} });
+    /// await client.send(command);
+    /// ```
+    ///
+    /// This method detects:
+    /// - DynamoDB Commands: GetItemCommand, PutItemCommand, UpdateItemCommand, etc.
+    /// - SQS Commands: SendMessageCommand, ReceiveMessageCommand
+    fn detect_aws_sdk_v3_commands(
+        &self,
+        tree: &tree_sitter::Tree,
+        content: &str,
+        path: &Path,
+    ) -> Vec<Discovery> {
+        let mut discoveries = Vec::new();
+
+        // DynamoDB command patterns
+        let dynamodb_commands = [
+            ("GetItemCommand", DatabaseOperation::Read),
+            ("QueryCommand", DatabaseOperation::Read),
+            ("ScanCommand", DatabaseOperation::Read),
+            ("BatchGetItemCommand", DatabaseOperation::Read),
+            ("TransactGetItemsCommand", DatabaseOperation::Read),
+            ("PutItemCommand", DatabaseOperation::Write),
+            ("DeleteItemCommand", DatabaseOperation::Write),
+            ("BatchWriteItemCommand", DatabaseOperation::Write),
+            ("TransactWriteItemsCommand", DatabaseOperation::Write),
+            ("UpdateItemCommand", DatabaseOperation::ReadWrite),
+        ];
+
+        // SQS command patterns
+        let sqs_commands = [
+            ("SendMessageCommand", QueueOperationType::Publish),
+            ("SendMessageBatchCommand", QueueOperationType::Publish),
+            ("ReceiveMessageCommand", QueueOperationType::Subscribe),
+            ("DeleteMessageCommand", QueueOperationType::Subscribe),
+            ("DeleteMessageBatchCommand", QueueOperationType::Subscribe),
+        ];
+
+        // Walk AST looking for `new XxxCommand(...)` patterns
+        self.walk_for_sdk_v3_commands(
+            tree.root_node(),
+            content,
+            path,
+            &dynamodb_commands,
+            &sqs_commands,
+            &mut discoveries,
+        );
+
+        discoveries
+    }
+
+    /// Walk AST looking for AWS SDK v3 command instantiations.
+    fn walk_for_sdk_v3_commands(
+        &self,
+        node: Node,
+        content: &str,
+        path: &Path,
+        dynamodb_commands: &[(&str, DatabaseOperation)],
+        sqs_commands: &[(&str, super::traits::QueueOperationType)],
+        discoveries: &mut Vec<Discovery>,
+    ) {
+        // Look for `new XxxCommand(...)` pattern
+        if node.kind() == "new_expression" {
+            if let Some(constructor) = node.child_by_field_name("constructor") {
+                let constructor_name = constructor.utf8_text(content.as_bytes()).unwrap_or("");
+
+                // Check for DynamoDB commands
+                for (command_name, operation) in dynamodb_commands {
+                    if constructor_name == *command_name {
+                        // Try to extract table name from constructor arguments
+                        let table_name = self.extract_table_name_from_new_expr(&node, content);
+
+                        discoveries.push(Discovery::DatabaseAccess(DatabaseAccessDiscovery {
+                            db_type: "dynamodb".to_string(),
+                            table_name,
+                            operation: *operation,
+                            detection_method: "aws-sdk-v3-command".to_string(),
+                            source_file: path.to_string_lossy().to_string(),
+                            source_line: node.start_position().row as u32 + 1,
+                        }));
+                        return; // Found a match, don't continue checking
+                    }
+                }
+
+                // Check for SQS commands
+                for (command_name, operation) in sqs_commands {
+                    if constructor_name == *command_name {
+                        // Try to extract queue name from QueueUrl
+                        let queue_name = self.extract_queue_name_from_new_expr(&node, content);
+
+                        discoveries.push(Discovery::QueueOperation(QueueOperationDiscovery {
+                            queue_type: "sqs".to_string(),
+                            queue_name,
+                            operation: *operation,
+                            source_file: path.to_string_lossy().to_string(),
+                            source_line: node.start_position().row as u32 + 1,
+                        }));
+                        return; // Found a match, don't continue checking
+                    }
+                }
+            }
+        }
+
+        // Recursively walk children
+        for i in 0..node.named_child_count() {
+            if let Some(child) = node.named_child(i) {
+                self.walk_for_sdk_v3_commands(
+                    child,
+                    content,
+                    path,
+                    dynamodb_commands,
+                    sqs_commands,
+                    discoveries,
+                );
+            }
+        }
+    }
+
+    /// Extract table name from a `new XxxCommand({ TableName: '...', ... })` expression.
+    fn extract_table_name_from_new_expr(&self, new_expr: &Node, content: &str) -> Option<String> {
+        // Look for arguments of the new expression
+        if let Some(args) = new_expr.child_by_field_name("arguments") {
+            for i in 0..args.named_child_count() {
+                if let Some(arg) = args.named_child(i) {
+                    // Check if it's an object with TableName property
+                    if arg.kind() == "object" {
+                        return self.find_table_name_in_object(arg, content);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Extract queue name from a `new SendMessageCommand({ QueueUrl: '...', ... })` expression.
+    fn extract_queue_name_from_new_expr(&self, new_expr: &Node, content: &str) -> Option<String> {
+        // Look for arguments of the new expression
+        if let Some(args) = new_expr.child_by_field_name("arguments") {
+            for i in 0..args.named_child_count() {
+                if let Some(arg) = args.named_child(i) {
+                    // Check if it's an object with QueueUrl property
+                    if arg.kind() == "object" {
+                        return self.find_queue_url_in_object(arg, content);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Find QueueUrl property in an object literal and extract queue name.
+    fn find_queue_url_in_object(&self, obj_node: Node, content: &str) -> Option<String> {
+        for i in 0..obj_node.named_child_count() {
+            if let Some(child) = obj_node.named_child(i) {
+                if child.kind() == "pair" {
+                    if let Some(key) = child.child_by_field_name("key") {
+                        let key_text = key.utf8_text(content.as_bytes()).unwrap_or("");
+                        if key_text == "QueueUrl" {
+                            if let Some(value) = child.child_by_field_name("value") {
+                                let value_text = value.utf8_text(content.as_bytes()).unwrap_or("");
+                                let url =
+                                    value_text.trim_matches(|c| c == '"' || c == '\'' || c == '`');
+                                // Extract queue name from URL (e.g., https://sqs.../123456789/queue-name)
+                                return url.split('/').next_back().map(|s| s.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Detect HTTP client usage (axios, fetch).
     fn detect_http_calls(
         &self,
@@ -712,6 +885,7 @@ impl Parser for JavaScriptParser {
         discoveries.extend(self.detect_imports(&tree, content, path));
         discoveries.extend(self.detect_aws_sdk(&tree, content, path));
         discoveries.extend(self.detect_dynamodb_operations(&tree, content, path));
+        discoveries.extend(self.detect_aws_sdk_v3_commands(&tree, content, path));
         discoveries.extend(self.detect_http_calls(&tree, content, path));
 
         Ok(discoveries)
@@ -1131,15 +1305,19 @@ await axios.delete('/api/users/123');
     #[test]
     fn test_mixed_imports_and_code() {
         let parser = create_parser();
+        // Use AWS SDK v3 command pattern for DynamoDB detection
+        // Note: Variable name like 'client' doesn't trigger DynamoDB detection
+        // to avoid false positives (e.g., axios.get()). Use explicit command classes instead.
         let content = r#"
 import express from 'express';
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 
 const app = express();
-const client = new DynamoDB({});
+const dynamoClient = new DynamoDBClient({});
 
 app.get('/users/:id', async (req, res) => {
-    const result = await client.get({ TableName: 'users', Key: { id: req.params.id } });
+    const command = new GetItemCommand({ TableName: 'users', Key: { id: { S: req.params.id } } });
+    const result = await dynamoClient.send(command);
     res.json(result.Item);
 });
 

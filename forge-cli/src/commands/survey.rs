@@ -33,8 +33,8 @@
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
 use forge_survey::{
-    CloneMethod as SurveyCloneMethod, GitHubClient, GraphBuilder, RepoCache, RepoInfo,
-    detect_languages, parser::ParserRegistry,
+    CloneMethod as SurveyCloneMethod, CouplingAnalyzer, GitHubClient, GraphBuilder, RepoCache,
+    RepoInfo, detect_languages, parser::ParserRegistry,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -199,13 +199,64 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         success_count, error_count
     );
 
-    // Build and save graph
-    let graph = builder.build();
+    // Build graph
+    let mut graph = builder.build();
     println!(
         "Built knowledge graph: {} nodes, {} edges",
         graph.node_count(),
         graph.edge_count()
     );
+
+    // Run coupling analysis (M4-T4)
+    if options.verbose {
+        println!("Running coupling analysis...");
+    }
+    let mut analyzer = CouplingAnalyzer::new(&graph);
+    let coupling_result = analyzer.analyze();
+
+    // Report coupling findings
+    let coupling_count = coupling_result.implicit_couplings.len();
+    let shared_read_count = coupling_result.shared_reads.len();
+    let shared_write_count = coupling_result.shared_writes.len();
+
+    if coupling_count > 0 || shared_read_count > 0 || shared_write_count > 0 {
+        println!(
+            "Coupling analysis: {} implicit couplings, {} shared reads, {} shared writes",
+            coupling_count, shared_read_count, shared_write_count
+        );
+
+        // Report high-risk couplings
+        for coupling in &coupling_result.implicit_couplings {
+            if matches!(coupling.risk_level, forge_survey::CouplingRisk::High) {
+                println!(
+                    "  ⚠ High-risk coupling: {} ↔ {} ({})",
+                    coupling.service_a.name(),
+                    coupling.service_b.name(),
+                    coupling.reason
+                );
+            } else if options.verbose {
+                println!(
+                    "  {:?}-risk coupling: {} ↔ {} ({})",
+                    coupling.risk_level,
+                    coupling.service_a.name(),
+                    coupling.service_b.name(),
+                    coupling.reason
+                );
+            }
+        }
+    } else if options.verbose {
+        println!("Coupling analysis: no implicit couplings detected");
+    }
+
+    // Apply coupling edges to graph
+    coupling_result.apply_to_graph(&mut graph)?;
+    let edge_count_after = graph.edge_count();
+    if edge_count_after > graph.node_count() {
+        // Only report if edges were actually added
+        if options.verbose {
+            println!("Added coupling edges: {} total edges now", edge_count_after);
+        }
+    }
 
     // Create output directory if needed
     if let Some(parent) = config.output.graph_path.parent() {
