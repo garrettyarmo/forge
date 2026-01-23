@@ -3,7 +3,7 @@
 //! This module provides serializers for the `forge map` command:
 //!
 //! - **Markdown**: Human-readable documentation optimized for LLM context consumption
-//! - **JSON**: Structured format for programmatic access (planned)
+//! - **JSON**: Structured format for programmatic access
 //! - **Mermaid**: Visual diagram syntax for documentation (planned)
 //!
 //! ## Design Philosophy
@@ -13,6 +13,8 @@
 //! bridge between Forge's internal representation and formats optimized for
 //! AI comprehension and human review.
 
+pub mod json;
 pub mod markdown;
 
+pub use json::{JsonOutput, JsonSerializer, QueryInfo};
 pub use markdown::{DetailLevel, MarkdownSerializer};

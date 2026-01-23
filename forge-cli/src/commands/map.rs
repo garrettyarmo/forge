@@ -2,11 +2,11 @@
 //!
 //! Serializes the knowledge graph to various output formats:
 //! - Markdown: Human-readable documentation optimized for LLM context
-//! - JSON: Structured format for programmatic access (planned)
+//! - JSON: Structured format for programmatic access
 //! - Mermaid: Visual diagram syntax for documentation (planned)
 
 use crate::config::ForgeConfig;
-use crate::serializers::MarkdownSerializer;
+use crate::serializers::{JsonSerializer, MarkdownSerializer, QueryInfo};
 use forge_graph::{ForgeGraph, NodeId, NodeType, SubgraphConfig};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -151,10 +151,8 @@ fn serialize_graph(
             Ok(serializer.serialize_graph(graph))
         }
         OutputFormat::Json => {
-            // JSON serializer not yet implemented
-            Err(MapError::UnknownFormat(
-                "json (not yet implemented - coming in M5-T3)".to_string(),
-            ))
+            let serializer = JsonSerializer::new();
+            Ok(serializer.serialize_graph(graph))
         }
         OutputFormat::Mermaid => {
             // Mermaid serializer not yet implemented
@@ -187,9 +185,15 @@ fn serialize_subgraph(
             let serializer = MarkdownSerializer::new();
             Ok(serializer.serialize_subgraph(&subgraph))
         }
-        OutputFormat::Json => Err(MapError::UnknownFormat(
-            "json (not yet implemented - coming in M5-T3)".to_string(),
-        )),
+        OutputFormat::Json => {
+            let serializer = JsonSerializer::new();
+            let query_info = QueryInfo {
+                query_type: "service_filter".to_string(),
+                seeds: Some(seed_ids.iter().map(|id| id.as_str().to_string()).collect()),
+                max_depth: Some(2),
+            };
+            Ok(serializer.serialize_subgraph(&subgraph, Some(query_info)))
+        }
         OutputFormat::Mermaid => Err(MapError::UnknownFormat(
             "mermaid (not yet implemented - coming in M5-T4)".to_string(),
         )),
@@ -391,5 +395,119 @@ mod tests {
         let content = std::fs::read_to_string(&output_path).unwrap();
         assert!(content.contains("# Relevant Context"));
         assert!(content.contains("User API"));
+    }
+
+    #[test]
+    fn test_serialize_graph_json() {
+        let graph = create_test_graph();
+
+        let output = serialize_graph(&graph, OutputFormat::Json, None).unwrap();
+
+        // Should be valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+
+        // Should have required fields
+        assert!(parsed.get("$schema").is_some());
+        assert!(parsed.get("version").is_some());
+        assert!(parsed.get("nodes").is_some());
+        assert!(parsed.get("edges").is_some());
+        assert!(parsed.get("summary").is_some());
+
+        // Check nodes
+        let nodes = parsed.get("nodes").unwrap().as_array().unwrap();
+        assert_eq!(nodes.len(), 3); // 2 services + 1 database
+    }
+
+    #[test]
+    fn test_serialize_subgraph_json() {
+        let graph = create_test_graph();
+        let seed_ids = vec![NodeId::new(NodeType::Service, "ns", "user-api").unwrap()];
+
+        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Json, None).unwrap();
+
+        // Should be valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+
+        // Should have query info
+        let query = parsed.get("query").unwrap();
+        assert_eq!(
+            query.get("type").unwrap().as_str().unwrap(),
+            "service_filter"
+        );
+
+        // Seeds should be present
+        let seeds = query.get("seeds").unwrap().as_array().unwrap();
+        assert!(!seeds.is_empty());
+    }
+
+    #[test]
+    fn test_run_map_with_json_format() {
+        let graph = create_test_graph();
+        let temp_dir = tempdir().unwrap();
+
+        // Save graph
+        let graph_path = temp_dir.path().join("graph.json");
+        graph.save_to_file(&graph_path).unwrap();
+
+        // Output path
+        let output_path = temp_dir.path().join("output.json");
+
+        let options = MapOptions {
+            config: None,
+            input: Some(graph_path.to_string_lossy().to_string()),
+            format: "json".to_string(),
+            service: None,
+            budget: None,
+            output: Some(output_path.to_string_lossy().to_string()),
+        };
+
+        run_map(options).unwrap();
+
+        // Verify output file exists and contains valid JSON
+        assert!(output_path.exists());
+
+        let content = std::fs::read_to_string(&output_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert!(parsed.get("nodes").is_some());
+    }
+
+    #[test]
+    fn test_run_map_json_with_service_filter() {
+        let graph = create_test_graph();
+        let temp_dir = tempdir().unwrap();
+
+        // Save graph
+        let graph_path = temp_dir.path().join("graph.json");
+        graph.save_to_file(&graph_path).unwrap();
+
+        // Output path
+        let output_path = temp_dir.path().join("output.json");
+
+        let options = MapOptions {
+            config: None,
+            input: Some(graph_path.to_string_lossy().to_string()),
+            format: "json".to_string(),
+            service: Some("User API".to_string()),
+            budget: None,
+            output: Some(output_path.to_string_lossy().to_string()),
+        };
+
+        run_map(options).unwrap();
+
+        let content = std::fs::read_to_string(&output_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        // Should have query info with service_filter type
+        let query = parsed.get("query").unwrap();
+        assert_eq!(
+            query.get("type").unwrap().as_str().unwrap(),
+            "service_filter"
+        );
+
+        // Nodes should have relevance scores
+        let nodes = parsed.get("nodes").unwrap().as_array().unwrap();
+        assert!(!nodes.is_empty());
+        let first_node = &nodes[0];
+        assert!(first_node.get("relevance").is_some());
     }
 }

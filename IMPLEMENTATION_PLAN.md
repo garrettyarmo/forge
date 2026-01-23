@@ -697,6 +697,22 @@ pub trait Parser: Send + Sync {
     - 21 comprehensive unit tests covering all serialization scenarios
     - Integrated with `forge map` command for markdown output
 
+- [x] **M5-T3**: Implement JSON serializer
+  - Structured format for tool-based LLM queries
+  - Schema-documented output
+  - **Files**: `forge-cli/src/serializers/json.rs`
+  - **Implementation Notes**:
+    - Created `JsonSerializer` struct in forge-cli/src/serializers/json.rs
+    - Output follows documented schema with $schema, version, generated_at fields
+    - Supports full graph serialization and subgraph extraction with relevance scores
+    - Query info included (type, seeds, max_depth)
+    - Summary statistics (total_nodes, total_edges, by_type)
+    - Business context serialization support
+    - Chrono dependency added for RFC3339 timestamps
+    - 15 comprehensive unit tests covering all serialization scenarios
+    - Integrated with `forge map --format json` command
+    - All tests passing
+
 - [x] **M5-T7**: Implement `forge map` command
   - `--format` flag (markdown, json, mermaid)
   - `--service` flag for filtering
@@ -706,14 +722,14 @@ pub trait Parser: Send + Sync {
   - **Implementation Notes**:
     - Full implementation of map command in forge-cli
     - Loads graph from configured path or --input override
-    - Supports --format flag (markdown working, json/mermaid pending M5-T3/T4)
+    - Supports --format flag (markdown and json working, mermaid pending M5-T4)
     - Service filtering via --service flag (comma-separated names)
     - Subgraph extraction using relevance-scored algorithm from M5-T1
     - Output to file via --output or stdout by default
-    - 7 comprehensive unit tests
+    - 11 comprehensive unit tests (including JSON format tests)
     - All tests passing
 
-- [ ] **M5-T3**: Implement JSON serializer
+- [ ] **M5-T4**: Implement Mermaid serializer
   - Structured format for tool-based LLM queries
   - Schema-documented output
   - **Files**: `forge-cli/src/serializers/json.rs`
@@ -749,7 +765,7 @@ tiktoken-rs = "0.5"
 ### Acceptance Criteria
 
 - [x] `forge map --format markdown` produces readable service docs
-- [ ] `forge map --format json` produces structured data
+- [x] `forge map --format json` produces structured data
 - [ ] `forge map --format mermaid` produces valid diagram syntax
 - [ ] `forge map --budget 4000` stays under token limit
 - [x] Subgraph extraction correctly filters by service

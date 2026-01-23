@@ -29,6 +29,9 @@ thiserror = { workspace = true }
 # Async runtime
 tokio = { workspace = true }
 
+# Time/date handling
+chrono = { workspace = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }
