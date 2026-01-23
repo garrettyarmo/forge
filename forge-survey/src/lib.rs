@@ -10,6 +10,7 @@
 //! - **GitHub Integration**: Discovering and cloning repositories from GitHub organizations
 //! - **Code Parsing**: Analyzing source code using tree-sitter AST parsing
 //! - **Discovery**: Detecting services, APIs, databases, and their relationships
+//! - **Coupling Detection**: Finding implicit coupling between services via shared resources
 //!
 //! # Architecture
 //!
@@ -26,18 +27,24 @@
 //! - [`github`]: GitHub API client and repository caching
 //! - [`parser`]: Language-specific code parsers and discovery types
 //! - [`graph_builder`]: Converts parser discoveries into a knowledge graph
+//! - [`coupling`]: Implicit coupling detection and resource access tracking
 
+pub mod coupling;
 pub mod detection;
 pub mod github;
 pub mod graph_builder;
 pub mod parser;
 
 use forge_graph::{ForgeGraph, GraphError};
-use thiserror::Error;
-use std::path::PathBuf;
 use std::collections::HashSet;
+use std::path::PathBuf;
+use thiserror::Error;
 
-pub use detection::{detect_languages, DetectedLanguage, DetectedLanguages, DetectionMethod};
+pub use coupling::{
+    AccessEvidence, AccessType, CouplingAnalysisResult, CouplingAnalyzer, CouplingRisk,
+    ImplicitCoupling, OwnershipAssignment, OwnershipReason, ResourceAccessMap, SharedAccess,
+};
+pub use detection::{DetectedLanguage, DetectedLanguages, DetectionMethod, detect_languages};
 pub use github::{CloneMethod, GitHubClient, GitHubError, RepoCache, RepoInfo};
 pub use graph_builder::GraphBuilder;
 // Re-export commonly used parser types for convenience
@@ -46,7 +53,6 @@ pub use parser::{
     Discovery, ImportDiscovery, Parser, ParserError, ParserRegistry, QueueOperationDiscovery,
     QueueOperationType, ServiceDiscovery,
 };
-
 
 #[derive(Debug, Error)]
 pub enum SurveyError {
@@ -96,12 +102,20 @@ pub async fn survey(config: SurveyConfig) -> Result<ForgeGraph, SurveyError> {
             continue;
         }
 
-        let service_name = source.file_name().and_then(|n| n.to_str()).unwrap_or("unknown_service").to_string();
+        let service_name = source
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown_service")
+            .to_string();
 
         let mut service_id = None;
 
         if let Some(parser) = registry.get("javascript") {
-            if let Some(js_parser) = parser.as_ref().as_any().downcast_ref::<parser::javascript::JavaScriptParser>() {
+            if let Some(js_parser) = parser
+                .as_ref()
+                .as_any()
+                .downcast_ref::<parser::javascript::JavaScriptParser>()
+            {
                 if let Some(service) = js_parser.parse_package_json(source) {
                     service_id = Some(builder.add_service(service));
                 }
@@ -110,7 +124,11 @@ pub async fn survey(config: SurveyConfig) -> Result<ForgeGraph, SurveyError> {
 
         if service_id.is_none() {
             if let Some(parser) = registry.get("python") {
-                if let Some(py_parser) = parser.as_ref().as_any().downcast_ref::<parser::python::PythonParser>() {
+                if let Some(py_parser) = parser
+                    .as_ref()
+                    .as_any()
+                    .downcast_ref::<parser::python::PythonParser>()
+                {
                     if let Some(service) = py_parser.parse_project_config(source) {
                         service_id = Some(builder.add_service(service));
                     }
@@ -118,12 +136,17 @@ pub async fn survey(config: SurveyConfig) -> Result<ForgeGraph, SurveyError> {
             }
         }
 
-
-        let service_id = service_id.unwrap_or_else(|| builder.add_service(ServiceDiscovery {
-            name: service_name,
-            language: detected_langs.iter().next().map(|l| l.name.clone()).unwrap_or_default(),
-            ..Default::default()
-        }));
+        let service_id = service_id.unwrap_or_else(|| {
+            builder.add_service(ServiceDiscovery {
+                name: service_name,
+                language: detected_langs
+                    .iter()
+                    .next()
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default(),
+                ..Default::default()
+            })
+        });
 
         for parser in parsers {
             let discoveries = parser.parse_repo(source)?;

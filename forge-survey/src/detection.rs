@@ -785,7 +785,11 @@ mod tests {
     #[test]
     fn test_config_requirements_txt() {
         let temp_dir = TempDir::new().unwrap();
-        create_file_with_content(temp_dir.path(), "requirements.txt", "flask==2.0.0\nrequests");
+        create_file_with_content(
+            temp_dir.path(),
+            "requirements.txt",
+            "flask==2.0.0\nrequests",
+        );
 
         let detected = check_config_files(temp_dir.path());
 
@@ -827,11 +831,7 @@ mod tests {
     #[test]
     fn test_config_setup_cfg() {
         let temp_dir = TempDir::new().unwrap();
-        create_file_with_content(
-            temp_dir.path(),
-            "setup.cfg",
-            "[metadata]\nname = my-app",
-        );
+        create_file_with_content(temp_dir.path(), "setup.cfg", "[metadata]\nname = my-app");
 
         let detected = check_config_files(temp_dir.path());
 
@@ -858,7 +858,11 @@ mod tests {
     fn test_config_multiple_python_files_only_one_detection() {
         let temp_dir = TempDir::new().unwrap();
         create_file_with_content(temp_dir.path(), "requirements.txt", "flask");
-        create_file_with_content(temp_dir.path(), "pyproject.toml", "[project]\nname = \"app\"");
+        create_file_with_content(
+            temp_dir.path(),
+            "pyproject.toml",
+            "[project]\nname = \"app\"",
+        );
         create_file_with_content(temp_dir.path(), "setup.py", "setup()");
 
         let detected = check_config_files(temp_dir.path());
@@ -899,11 +903,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         // Create package.json (config detection)
-        create_file_with_content(
-            temp_dir.path(),
-            "package.json",
-            r#"{"name": "app"}"#,
-        );
+        create_file_with_content(temp_dir.path(), "package.json", r#"{"name": "app"}"#);
 
         // Also create JS files (extension detection)
         create_file_with_content(temp_dir.path(), "file1.js", "");
@@ -936,11 +936,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         // JavaScript via config
-        create_file_with_content(
-            temp_dir.path(),
-            "package.json",
-            r#"{"name": "app"}"#,
-        );
+        create_file_with_content(temp_dir.path(), "package.json", r#"{"name": "app"}"#);
 
         // Terraform via extension only
         create_file_with_content(temp_dir.path(), "main.tf", "");
@@ -1012,7 +1008,11 @@ mod tests {
         let detected = detect_languages(temp_dir.path());
 
         // Should only have one Python entry
-        let python_entries: Vec<_> = detected.languages().into_iter().filter(|l| l.name == "python").collect();
+        let python_entries: Vec<_> = detected
+            .languages()
+            .into_iter()
+            .filter(|l| l.name == "python")
+            .collect();
         assert_eq!(python_entries.len(), 1);
 
         // And it should have config confidence
@@ -1098,7 +1098,10 @@ mod tests {
 
     #[test]
     fn test_detection_method_equality() {
-        assert_eq!(DetectionMethod::FileExtension, DetectionMethod::FileExtension);
+        assert_eq!(
+            DetectionMethod::FileExtension,
+            DetectionMethod::FileExtension
+        );
         assert_eq!(DetectionMethod::ConfigFile, DetectionMethod::ConfigFile);
         assert_ne!(DetectionMethod::FileExtension, DetectionMethod::ConfigFile);
     }
@@ -1108,11 +1111,8 @@ mod tests {
     #[test]
     fn test_scan_extensions_deep_nesting() {
         // Files at max depth should be counted
-        let temp_dir = create_test_repo(&[
-            "src/a/b/file1.js",
-            "src/a/b/file2.js",
-            "src/a/b/file3.js",
-        ]);
+        let temp_dir =
+            create_test_repo(&["src/a/b/file1.js", "src/a/b/file2.js", "src/a/b/file3.js"]);
 
         let detected = scan_file_extensions(temp_dir.path());
 

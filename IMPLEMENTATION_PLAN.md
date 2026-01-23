@@ -555,7 +555,7 @@ pub trait Parser: Send + Sync {
 - [x] Languages are auto-detected from file extensions and config files (no manual config needed)
 - [x] Survey correctly applies parsers based on auto-detected languages
 - [x] Can exclude a language via `languages.exclude` in forge.yaml
-- [ ] Adding a new parser only requires implementing the trait
+- [x] Adding a new parser only requires implementing the trait
 
 ---
 
@@ -567,42 +567,71 @@ pub trait Parser: Send + Sync {
 
 ### Tasks
 
-- [ ] **M4-T1**: Implement shared resource detection
+- [x] **M4-T1**: Implement shared resource detection
   - For each Database/Queue node, track which services access it
   - Classify access: primary owner vs. shared reader/writer
   - **Files**: `forge-survey/src/coupling.rs`
+  - **Implementation Notes**:
+    - Created ResourceAccessMap struct with methods to track reads/writes
+    - Created AccessEvidence struct to record access evidence
+    - Implemented build_access_map() method in CouplingAnalyzer
 
-- [ ] **M4-T2**: Implement ownership inference
+- [x] **M4-T2**: Implement ownership inference
   - Heuristics: which service created resource (Terraform), naming conventions
   - Allow manual override via annotations
   - **Files**: `forge-survey/src/coupling.rs`
+  - **Implementation Notes**:
+    - Implemented infer_ownership() with three strategies:
+      - Terraform definition (0.9 confidence)
+      - Naming convention (0.7 confidence)
+      - Exclusive writer (0.6 confidence)
+    - Created OwnershipAssignment and OwnershipReason types
 
-- [ ] **M4-T3**: Generate IMPLICITLY_COUPLED edges
+- [x] **M4-T3**: Generate IMPLICITLY_COUPLED edges
   - For services sharing a resource without explicit API
   - Include reason metadata (e.g., "both access users-table")
   - **Files**: `forge-survey/src/coupling.rs`
+  - **Implementation Notes**:
+    - Implemented detect_implicit_couplings() with risk level classification (Low/Medium/High)
+    - Implemented generate_shared_access_edges() for READS_SHARED and WRITES_SHARED
+    - Implemented CouplingAnalysisResult with apply_to_graph() method
+    - Created ImplicitCoupling, SharedAccess, CouplingRisk types
 
 - [ ] **M4-T4**: Add coupling analysis to survey pipeline
   - Run after all parsers complete
   - Add coupling edges to graph
   - **Files**: `forge-survey/src/lib.rs`
+  - **Status**: Not yet integrated into survey command
 
-- [ ] **M4-T5**: Write unit tests for coupling detection
+- [x] **M4-T5**: Write unit tests for coupling detection
   - Test ownership inference
   - Test implicit coupling detection
   - **Files**: `forge-survey/src/coupling.rs` (tests)
+  - **Implementation Notes**:
+    - 20 comprehensive unit tests covering:
+      - ResourceAccessMap (6 tests)
+      - CouplingAnalyzer build_access_map (4 tests)
+      - Implicit coupling detection (4 tests)
+      - Ownership inference (2 tests)
+      - Shared access edges (1 test)
+      - Apply results to graph (2 tests)
+      - Edge cases (1 test)
+    - All tests passing (197 total workspace tests)
 
 - [ ] **M4-T6**: Write integration test for coupling scenarios
   - Create fixtures with shared DynamoDB patterns
   - Verify IMPLICITLY_COUPLED edges created
   - **Files**: `forge-survey/tests/integration_coupling.rs`
+  - **Status**: Not yet implemented
 
 ### Acceptance Criteria
 
-- [ ] Services reading same DynamoDB table get IMPLICITLY_COUPLED edge
-- [ ] Ownership is correctly inferred from Terraform definitions
-- [ ] Coupling reasons are recorded in edge metadata
+- [x] Services reading the same DynamoDB table get IMPLICITLY_COUPLED edge
+- [x] Services sharing SQS queues get IMPLICITLY_COUPLED edge
+- [x] Ownership is correctly inferred from Terraform definitions
+- [x] Coupling reasons are recorded in edge metadata
 - [ ] Graph visualizes coupling relationships
+- [ ] Coupling analysis integrated into survey command pipeline
 
 ---
 

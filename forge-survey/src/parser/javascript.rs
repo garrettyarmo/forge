@@ -12,8 +12,7 @@
 
 use super::traits::{
     ApiCallDiscovery, CloudResourceDiscovery, DatabaseAccessDiscovery, DatabaseOperation,
-    Discovery, ImportDiscovery, Parser, ParserError,
-    ServiceDiscovery,
+    Discovery, ImportDiscovery, Parser, ParserError, ServiceDiscovery,
 };
 use std::any::Any;
 use std::path::Path;
@@ -486,7 +485,10 @@ impl JavaScriptParser {
     /// Check if an AST node represents a DynamoDB-like object.
     /// This helps avoid false positives like axios.get() being detected as DynamoDB.
     fn is_dynamodb_like_object(&self, node: Node, content: &str) -> bool {
-        let text = node.utf8_text(content.as_bytes()).unwrap_or("").to_lowercase();
+        let text = node
+            .utf8_text(content.as_bytes())
+            .unwrap_or("")
+            .to_lowercase();
 
         // Common DynamoDB client variable names
         let dynamodb_names = [
@@ -848,7 +850,9 @@ import { SQSClient } from '@aws-sdk/client-sqs';
             .collect();
 
         assert!(
-            imports.iter().any(|i| i.module == "@aws-sdk/client-dynamodb"),
+            imports
+                .iter()
+                .any(|i| i.module == "@aws-sdk/client-dynamodb"),
             "Should detect DynamoDB client import"
         );
         assert!(

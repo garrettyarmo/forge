@@ -342,8 +342,7 @@ impl PythonParser {
                 let module_text = node.utf8_text(content.as_bytes()).unwrap_or("");
 
                 if !module_text.is_empty() {
-                    let imported_items =
-                        self.extract_imported_names(node.parent(), content);
+                    let imported_items = self.extract_imported_names(node.parent(), content);
 
                     discoveries.push(Discovery::Import(ImportDiscovery {
                         module: module_text.to_string(),
@@ -369,15 +368,15 @@ impl PythonParser {
         };
 
         let mut cursor = QueryCursor::new();
-        let mut matches = cursor.matches(&relative_import_query, tree.root_node(), content.as_bytes());
+        let mut matches =
+            cursor.matches(&relative_import_query, tree.root_node(), content.as_bytes());
         while let Some(match_) = matches.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let module_text = node.utf8_text(content.as_bytes()).unwrap_or("");
 
                 if !module_text.is_empty() {
-                    let imported_items =
-                        self.extract_imported_names(node.parent(), content);
+                    let imported_items = self.extract_imported_names(node.parent(), content);
 
                     discoveries.push(Discovery::Import(ImportDiscovery {
                         module: module_text.to_string(),
@@ -394,11 +393,7 @@ impl PythonParser {
     }
 
     /// Extract imported names from a from...import statement.
-    fn extract_imported_names(
-        &self,
-        import_node: Option<Node>,
-        content: &str,
-    ) -> Vec<String> {
+    fn extract_imported_names(&self, import_node: Option<Node>, content: &str) -> Vec<String> {
         let mut items = Vec::new();
 
         if let Some(stmt) = import_node {
@@ -461,7 +456,8 @@ impl PythonParser {
                     if let Some(object_node) = function_node.child_by_field_name("object") {
                         if let Some(attribute_node) = function_node.child_by_field_name("attribute")
                         {
-                            let object_text = object_node.utf8_text(content.as_bytes()).unwrap_or("");
+                            let object_text =
+                                object_node.utf8_text(content.as_bytes()).unwrap_or("");
                             let attribute_text =
                                 attribute_node.utf8_text(content.as_bytes()).unwrap_or("");
 
@@ -627,13 +623,14 @@ impl PythonParser {
                                 && http_methods.contains(&method)
                             {
                                 // Extract URL from arguments
-                                let url =
-                                    if let Some(args_node) = node.child_by_field_name("arguments") {
-                                        self.extract_first_string_arg(args_node, content)
-                                            .unwrap_or_else(|| "unknown".to_string())
-                                    } else {
-                                        "unknown".to_string()
-                                    };
+                                let url = if let Some(args_node) =
+                                    node.child_by_field_name("arguments")
+                                {
+                                    self.extract_first_string_arg(args_node, content)
+                                        .unwrap_or_else(|| "unknown".to_string())
+                                } else {
+                                    "unknown".to_string()
+                                };
 
                                 discoveries.push(Discovery::ApiCall(ApiCallDiscovery {
                                     target: url,
@@ -738,7 +735,9 @@ impl PythonParser {
 
                     // Right should be a call expression
                     if right_node.kind() == "call" {
-                        if let Some(table_name) = self.extract_table_name_from_call(right_node, content) {
+                        if let Some(table_name) =
+                            self.extract_table_name_from_call(right_node, content)
+                        {
                             mappings.insert(var_name.to_string(), table_name);
                         }
                     }
@@ -798,12 +797,13 @@ impl PythonParser {
                         for (method_name, operation) in &dynamodb_methods {
                             if method == *method_name {
                                 // Try to extract table name from arguments first
-                                let mut table_name =
-                                    if let Some(args_node) = node.child_by_field_name("arguments") {
-                                        self.extract_table_name(args_node, content)
-                                    } else {
-                                        None
-                                    };
+                                let mut table_name = if let Some(args_node) =
+                                    node.child_by_field_name("arguments")
+                                {
+                                    self.extract_table_name(args_node, content)
+                                } else {
+                                    None
+                                };
 
                                 // If no table name from arguments, try to get it from
                                 // the object variable (e.g., `table` in `table.get_item(...)`)
@@ -815,8 +815,7 @@ impl PythonParser {
                                             let var_name = object_node
                                                 .utf8_text(content.as_bytes())
                                                 .unwrap_or("");
-                                            table_name =
-                                                table_mappings.get(var_name).cloned();
+                                            table_name = table_mappings.get(var_name).cloned();
                                         }
                                     }
                                 }
@@ -902,9 +901,7 @@ impl PythonParser {
                                     let value =
                                         value_node.utf8_text(content.as_bytes()).unwrap_or("");
                                     return Some(
-                                        value
-                                            .trim_matches(|c| c == '"' || c == '\'')
-                                            .to_string(),
+                                        value.trim_matches(|c| c == '"' || c == '\'').to_string(),
                                     );
                                 }
                             }
@@ -1573,11 +1570,31 @@ requests.patch('https://api.example.com/users/1', json={})
             .collect();
 
         assert!(api_calls.len() >= 5, "Should detect all HTTP method calls");
-        assert!(api_calls.iter().any(|a| a.method == Some("GET".to_string())));
-        assert!(api_calls.iter().any(|a| a.method == Some("POST".to_string())));
-        assert!(api_calls.iter().any(|a| a.method == Some("PUT".to_string())));
-        assert!(api_calls.iter().any(|a| a.method == Some("DELETE".to_string())));
-        assert!(api_calls.iter().any(|a| a.method == Some("PATCH".to_string())));
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("GET".to_string()))
+        );
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("POST".to_string()))
+        );
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("PUT".to_string()))
+        );
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("DELETE".to_string()))
+        );
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("PATCH".to_string()))
+        );
     }
 
     #[test]
@@ -1998,7 +2015,9 @@ secretsmanager = boto3.client('secretsmanager')
             .collect();
 
         assert!(
-            resources.iter().any(|r| r.resource_type == "secretsmanager"),
+            resources
+                .iter()
+                .any(|r| r.resource_type == "secretsmanager"),
             "Should detect generic AWS service"
         );
     }
@@ -2049,7 +2068,15 @@ requests.options('https://api.example.com/users')
             })
             .collect();
 
-        assert!(api_calls.iter().any(|a| a.method == Some("HEAD".to_string())));
-        assert!(api_calls.iter().any(|a| a.method == Some("OPTIONS".to_string())));
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("HEAD".to_string()))
+        );
+        assert!(
+            api_calls
+                .iter()
+                .any(|a| a.method == Some("OPTIONS".to_string()))
+        );
     }
 }

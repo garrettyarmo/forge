@@ -33,8 +33,8 @@
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
 use forge_survey::{
-    detect_languages, parser::ParserRegistry, CloneMethod as SurveyCloneMethod, GitHubClient,
-    GraphBuilder, RepoCache, RepoInfo,
+    CloneMethod as SurveyCloneMethod, GitHubClient, GraphBuilder, RepoCache, RepoInfo,
+    detect_languages, parser::ParserRegistry,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -67,7 +67,9 @@ pub enum SurveyError {
     InvalidRepoFormat(String),
 
     /// No repositories configured.
-    #[error("No repositories to survey. Configure github_org, github_repos, or local_paths in forge.yaml")]
+    #[error(
+        "No repositories to survey. Configure github_org, github_repos, or local_paths in forge.yaml"
+    )]
     NoRepositories,
 
     /// GitHub token not available.
@@ -128,7 +130,10 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     }
 
     if let Some(exclude_langs) = &options.exclude_lang {
-        let langs: Vec<String> = exclude_langs.split(',').map(|s| s.trim().to_string()).collect();
+        let langs: Vec<String> = exclude_langs
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
         config.languages.exclude.extend(langs);
     }
 
@@ -214,7 +219,10 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
 
     // Save graph
     graph.save_to_file(&config.output.graph_path)?;
-    println!("Saved knowledge graph to: {}", config.output.graph_path.display());
+    println!(
+        "Saved knowledge graph to: {}",
+        config.output.graph_path.display()
+    );
 
     Ok(())
 }
@@ -249,9 +257,9 @@ async fn collect_repos(
         }
 
         // Need GitHub token for API access
-        let token = config.github_token().map_err(|_| {
-            SurveyError::NoGitHubToken(config.github.token_env.clone())
-        })?;
+        let token = config
+            .github_token()
+            .map_err(|_| SurveyError::NoGitHubToken(config.github.token_env.clone()))?;
 
         let client = GitHubClient::new(
             &token,
@@ -283,9 +291,9 @@ async fn collect_repos(
         }
 
         // Need GitHub token for API access
-        let token = config.github_token().map_err(|_| {
-            SurveyError::NoGitHubToken(config.github.token_env.clone())
-        })?;
+        let token = config
+            .github_token()
+            .map_err(|_| SurveyError::NoGitHubToken(config.github.token_env.clone()))?;
 
         let client = GitHubClient::new(
             &token,
@@ -416,8 +424,8 @@ async fn survey_repository(
             if let Some(js_parser) = js_parser
                 .as_ref()
                 .as_any()
-                .downcast_ref::<forge_survey::parser::javascript::JavaScriptParser>()
-            {
+                .downcast_ref::<forge_survey::parser::javascript::JavaScriptParser>(
+            ) {
                 if let Some(service) = js_parser.parse_package_json(&local_path) {
                     if options.verbose {
                         println!("  Found service: {} (from package.json)", service.name);
@@ -431,17 +439,15 @@ async fn survey_repository(
     // Try Python (pyproject.toml, setup.py, requirements.txt)
     if service_id.is_none() {
         let python_configs = ["pyproject.toml", "setup.py", "requirements.txt"];
-        let has_python_config = python_configs
-            .iter()
-            .any(|f| local_path.join(f).exists());
+        let has_python_config = python_configs.iter().any(|f| local_path.join(f).exists());
 
         if has_python_config {
             if let Some(py_parser) = registry.get("python") {
                 if let Some(py_parser) = py_parser
                     .as_ref()
                     .as_any()
-                    .downcast_ref::<forge_survey::parser::python::PythonParser>()
-                {
+                    .downcast_ref::<forge_survey::parser::python::PythonParser>(
+                ) {
                     if let Some(service) = py_parser.parse_project_config(&local_path) {
                         if options.verbose {
                             println!("  Found service: {} (from Python config)", service.name);
@@ -480,10 +486,7 @@ async fn survey_repository(
     for parser in &parsers {
         if options.verbose {
             let extensions = parser.supported_extensions();
-            println!(
-                "  Parsing {} files...",
-                extensions.join("/")
-            );
+            println!("  Parsing {} files...", extensions.join("/"));
         }
 
         match parser.parse_repo(&local_path) {

@@ -7,8 +7,8 @@
 //! 4. Validating graph structure and content
 
 use forge_graph::{AttributeValue, EdgeType, NodeType};
-use forge_survey::parser::{Parser, PythonParser};
 use forge_survey::GraphBuilder;
+use forge_survey::parser::{Parser, PythonParser};
 use std::fs;
 use tempfile::tempdir;
 
@@ -169,11 +169,7 @@ fn test_survey_python_repo_with_http_calls() {
     fs::create_dir_all(&repo_path).unwrap();
 
     // Create requirements.txt
-    fs::write(
-        repo_path.join("requirements.txt"),
-        "requests>=2.31.0\n",
-    )
-    .unwrap();
+    fs::write(repo_path.join("requirements.txt"), "requests>=2.31.0\n").unwrap();
 
     // Create Python file with requests usage
     fs::write(
@@ -233,14 +229,18 @@ def delete_order(order_id):
         // Verify we have different HTTP methods
         let has_get = api_calls.iter().any(|call| {
             if let AttributeValue::Map(map) = call {
-                map.get("method").map(|m| matches!(m, AttributeValue::String(s) if s == "GET")).unwrap_or(false)
+                map.get("method")
+                    .map(|m| matches!(m, AttributeValue::String(s) if s == "GET"))
+                    .unwrap_or(false)
             } else {
                 false
             }
         });
         let has_post = api_calls.iter().any(|call| {
             if let AttributeValue::Map(map) = call {
-                map.get("method").map(|m| matches!(m, AttributeValue::String(s) if s == "POST")).unwrap_or(false)
+                map.get("method")
+                    .map(|m| matches!(m, AttributeValue::String(s) if s == "POST"))
+                    .unwrap_or(false)
             } else {
                 false
             }
@@ -269,11 +269,7 @@ fn test_survey_python_repo_with_multiple_aws_services() {
     fs::create_dir_all(&repo_path).unwrap();
 
     // Create requirements.txt
-    fs::write(
-        repo_path.join("requirements.txt"),
-        "boto3>=1.28.0\n",
-    )
-    .unwrap();
+    fs::write(repo_path.join("requirements.txt"), "boto3>=1.28.0\n").unwrap();
 
     // Create Python file with multiple AWS services
     fs::write(
@@ -331,10 +327,7 @@ def process_data(data_id):
 
     // Should detect DynamoDB (Database node)
     let databases: Vec<_> = graph.nodes_by_type(NodeType::Database).collect();
-    assert!(
-        databases.len() > 0,
-        "Should detect DynamoDB database node"
-    );
+    assert!(databases.len() > 0, "Should detect DynamoDB database node");
 
     // Should detect S3 (CloudResource node)
     let cloud_resources: Vec<_> = graph.nodes_by_type(NodeType::CloudResource).collect();
@@ -345,10 +338,7 @@ def process_data(data_id):
 
     // Should detect SQS (Queue node)
     let queues: Vec<_> = graph.nodes_by_type(NodeType::Queue).collect();
-    assert!(
-        queues.len() > 0,
-        "Should detect SQS queue node"
-    );
+    assert!(queues.len() > 0, "Should detect SQS queue node");
 
     // Verify we have a good mix of node types
     assert!(
@@ -463,11 +453,7 @@ fn test_survey_empty_python_repo() {
     fs::create_dir_all(&repo_path).unwrap();
 
     // Create only a requirements.txt with no source files
-    fs::write(
-        repo_path.join("requirements.txt"),
-        "boto3>=1.28.0\n",
-    )
-    .unwrap();
+    fs::write(repo_path.join("requirements.txt"), "boto3>=1.28.0\n").unwrap();
 
     // Run survey - should not crash
     let parser = PythonParser::new().unwrap();

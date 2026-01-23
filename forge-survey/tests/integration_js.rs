@@ -8,8 +8,8 @@
 
 use forge_graph::{AttributeValue, EdgeType, NodeType};
 use forge_survey::{
-    parser::{JavaScriptParser, TerraformParser},
     GraphBuilder, Parser,
+    parser::{JavaScriptParser, TerraformParser},
 };
 use std::fs;
 use tempfile::tempdir;
@@ -19,7 +19,7 @@ use tempfile::tempdir;
 fn test_js_and_tf_integration() {
     let dir = tempdir().unwrap();
     let repo_path = dir.path();
-    
+
     // Create a JS file that uses an SQS queue
     fs::write(
         repo_path.join("main.js"),
@@ -28,7 +28,8 @@ fn test_js_and_tf_integration() {
         const sqs = new SQSClient({});
         sqs.sendMessage({ QueueUrl: 'https://sqs.us-east-1.amazonaws.com/123456789/my-app-queue' });
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     // Create a TF file that defines the same queue
     fs::write(
@@ -38,12 +39,13 @@ fn test_js_and_tf_integration() {
           name = "my-app-queue"
         }
         "#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Run both parsers
     let js_parser = JavaScriptParser::new().unwrap();
     let tf_parser = TerraformParser::new().unwrap();
-    
+
     let js_discoveries = js_parser.parse_repo(repo_path).unwrap();
     let tf_discoveries = tf_parser.parse_repo(repo_path).unwrap();
 
@@ -58,10 +60,10 @@ fn test_js_and_tf_integration() {
         source_line: 1,
     };
     let service_id = builder.add_service(service_discovery);
-    
+
     builder.process_discoveries(js_discoveries, &service_id);
     builder.process_discoveries(tf_discoveries, &service_id);
-    
+
     let graph = builder.build();
 
     // Verify that the queue node was created and deduplicated
@@ -70,10 +72,13 @@ fn test_js_and_tf_integration() {
     for q in &queues {
         println!("  - {} (id: {})", q.display_name, q.id);
     }
-    assert_eq!(queues.len(), 1, "Should detect and deduplicate the queue to a single node");
+    assert_eq!(
+        queues.len(),
+        1,
+        "Should detect and deduplicate the queue to a single node"
+    );
     assert_eq!(queues[0].display_name, "my-app-queue");
 }
-
 
 /// Test surveying a synthetic JavaScript repository with Express and DynamoDB.
 ///
@@ -463,7 +468,11 @@ fn test_survey_empty_js_repo() {
 
     // Should not panic on empty repo
     let discoveries = parser.parse_repo(&repo_path).unwrap();
-    assert_eq!(discoveries.len(), 0, "Empty repo should yield no discoveries");
+    assert_eq!(
+        discoveries.len(),
+        0,
+        "Empty repo should yield no discoveries"
+    );
 
     let graph = builder.build();
     assert_eq!(graph.node_count(), 0, "Graph should be empty");

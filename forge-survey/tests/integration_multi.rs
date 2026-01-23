@@ -1,7 +1,7 @@
 //! Integration test for surveying a multi-language repository.
 
 use forge_graph::{EdgeType, NodeType};
-use forge_survey::{survey, SurveyConfig};
+use forge_survey::{SurveyConfig, survey};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -64,10 +64,7 @@ async fn test_survey_multi_language_repo() {
 
     // Python service that reads from DynamoDB
     let py_service_path = root.join("py_service");
-    write_file(
-        &py_service_path.join("requirements.txt"),
-        "boto3\nfastapi",
-    );
+    write_file(&py_service_path.join("requirements.txt"), "boto3\nfastapi");
     write_file(
         &py_service_path.join("src/main.py"),
         r#"
@@ -200,7 +197,10 @@ output "table_arn" {
     assert!(
         my_table.is_some(),
         "Should detect 'my-table' DynamoDB table. Found databases: {:?}",
-        databases.iter().map(|d| &d.display_name).collect::<Vec<_>>()
+        databases
+            .iter()
+            .map(|d| &d.display_name)
+            .collect::<Vec<_>>()
     );
     let db_node = my_table.unwrap();
 
@@ -262,6 +262,9 @@ response = table.get_item(Key={'id': '123'})
     assert!(
         databases.is_empty(),
         "With Python excluded, should not detect DynamoDB table. Found: {:?}",
-        databases.iter().map(|d| &d.display_name).collect::<Vec<_>>()
+        databases
+            .iter()
+            .map(|d| &d.display_name)
+            .collect::<Vec<_>>()
     );
 }

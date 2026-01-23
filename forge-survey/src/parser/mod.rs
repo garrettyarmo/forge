@@ -456,7 +456,8 @@ mod tests {
     #[test]
     fn test_get_for_languages_all_four_languages() {
         let registry = ParserRegistry::new().expect("Failed to create registry");
-        let detected = create_detected_languages(&["javascript", "typescript", "python", "terraform"]);
+        let detected =
+            create_detected_languages(&["javascript", "typescript", "python", "terraform"]);
 
         let parsers = registry.get_for_languages(&detected, &[]);
 
@@ -490,10 +491,8 @@ mod tests {
         let registry = ParserRegistry::new().expect("Failed to create registry");
         let detected = create_detected_languages(&["javascript", "python", "terraform"]);
 
-        let parsers = registry.get_for_languages(
-            &detected,
-            &["python".to_string(), "terraform".to_string()],
-        );
+        let parsers =
+            registry.get_for_languages(&detected, &["python".to_string(), "terraform".to_string()]);
 
         assert_eq!(parsers.len(), 1);
     }
@@ -503,10 +502,8 @@ mod tests {
         let registry = ParserRegistry::new().expect("Failed to create registry");
         let detected = create_detected_languages(&["javascript", "python"]);
 
-        let parsers = registry.get_for_languages(
-            &detected,
-            &["javascript".to_string(), "python".to_string()],
-        );
+        let parsers = registry
+            .get_for_languages(&detected, &["javascript".to_string(), "python".to_string()]);
 
         assert!(parsers.is_empty());
     }

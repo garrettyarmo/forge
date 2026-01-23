@@ -5,5 +5,5 @@ mod common;
 
 // Declare the integration test modules.
 mod integration_js;
-mod integration_python;
 mod integration_multi;
+mod integration_python;

@@ -59,8 +59,14 @@ impl TerraformParser {
         }
     }
 
-    fn parse_dynamodb_table(&self, block: &hcl::Block, tf_name: &str, path: &Path) -> Option<Discovery> {
-        let table_name = self.get_string_attribute(block.body(), "name")
+    fn parse_dynamodb_table(
+        &self,
+        block: &hcl::Block,
+        tf_name: &str,
+        path: &Path,
+    ) -> Option<Discovery> {
+        let table_name = self
+            .get_string_attribute(block.body(), "name")
             .unwrap_or_else(|| tf_name.to_string());
 
         Some(Discovery::DatabaseAccess(DatabaseAccessDiscovery {
@@ -74,7 +80,8 @@ impl TerraformParser {
     }
 
     fn parse_sqs_queue(&self, block: &hcl::Block, tf_name: &str, path: &Path) -> Option<Discovery> {
-        let queue_name = self.get_string_attribute(block.body(), "name")
+        let queue_name = self
+            .get_string_attribute(block.body(), "name")
             .unwrap_or_else(|| tf_name.to_string());
 
         Some(Discovery::QueueOperation(QueueOperationDiscovery {
@@ -87,7 +94,8 @@ impl TerraformParser {
     }
 
     fn parse_sns_topic(&self, block: &hcl::Block, tf_name: &str, path: &Path) -> Option<Discovery> {
-        let topic_name = self.get_string_attribute(block.body(), "name")
+        let topic_name = self
+            .get_string_attribute(block.body(), "name")
             .unwrap_or_else(|| tf_name.to_string());
 
         Some(Discovery::QueueOperation(QueueOperationDiscovery {
@@ -100,7 +108,8 @@ impl TerraformParser {
     }
 
     fn parse_s3_bucket(&self, block: &hcl::Block, tf_name: &str, path: &Path) -> Option<Discovery> {
-        let bucket_name = self.get_string_attribute(block.body(), "bucket")
+        let bucket_name = self
+            .get_string_attribute(block.body(), "bucket")
             .unwrap_or_else(|| tf_name.to_string());
 
         Some(Discovery::CloudResourceUsage(CloudResourceDiscovery {
@@ -111,26 +120,35 @@ impl TerraformParser {
         }))
     }
 
-    fn parse_lambda_function(&self, block: &hcl::Block, tf_name: &str, path: &Path) -> Option<Discovery> {
-        let function_name = self.get_string_attribute(block.body(), "function_name")
+    fn parse_lambda_function(
+        &self,
+        block: &hcl::Block,
+        tf_name: &str,
+        path: &Path,
+    ) -> Option<Discovery> {
+        let function_name = self
+            .get_string_attribute(block.body(), "function_name")
             .unwrap_or_else(|| tf_name.to_string());
 
         let runtime = self.get_string_attribute(block.body(), "runtime");
         let handler = self.get_string_attribute(block.body(), "handler");
 
-        let language = runtime.as_ref().map(|r| {
-            if r.starts_with("python") {
-                "python".to_string()
-            } else if r.starts_with("nodejs") {
-                "javascript".to_string()
-            } else if r.starts_with("go") {
-                "go".to_string()
-            } else if r.starts_with("java") {
-                "java".to_string()
-            } else {
-                r.clone()
-            }
-        }).unwrap_or_else(|| "unknown".to_string());
+        let language = runtime
+            .as_ref()
+            .map(|r| {
+                if r.starts_with("python") {
+                    "python".to_string()
+                } else if r.starts_with("nodejs") {
+                    "javascript".to_string()
+                } else if r.starts_with("go") {
+                    "go".to_string()
+                } else if r.starts_with("java") {
+                    "java".to_string()
+                } else {
+                    r.clone()
+                }
+            })
+            .unwrap_or_else(|| "unknown".to_string());
 
         // Lambda functions are services
         Some(Discovery::Service(ServiceDiscovery {
@@ -146,11 +164,9 @@ impl TerraformParser {
     fn get_string_attribute(&self, body: &hcl::Body, key: &str) -> Option<String> {
         body.attributes()
             .find(|attr| attr.key() == key)
-            .and_then(|attr| {
-                match attr.expr() {
-                    hcl::Expression::String(s) => Some(s.to_string()),
-                    _ => None,
-                }
+            .and_then(|attr| match attr.expr() {
+                hcl::Expression::String(s) => Some(s.to_string()),
+                _ => None,
             })
     }
 }
@@ -277,7 +293,10 @@ resource "aws_s3_bucket" "data" {
             .collect();
 
         assert_eq!(resources.len(), 1);
-        assert_eq!(resources[0].resource_name, Some("my-data-bucket".to_string()));
+        assert_eq!(
+            resources[0].resource_name,
+            Some("my-data-bucket".to_string())
+        );
         assert_eq!(resources[0].resource_type, "s3");
     }
 
