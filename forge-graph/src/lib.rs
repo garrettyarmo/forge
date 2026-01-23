@@ -71,7 +71,7 @@ pub use node::{
     AttributeValue, BusinessContext, DiscoverySource, Node, NodeBuilder, NodeBuilderError, NodeId,
     NodeIdError, NodeMetadata, NodeType,
 };
-pub use query::TraversalDirection;
+pub use query::{ExtractedSubgraph, ScoredNode, SubgraphConfig, TraversalDirection};
 
 #[cfg(test)]
 mod integration_tests {

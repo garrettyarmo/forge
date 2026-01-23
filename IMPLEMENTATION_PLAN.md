@@ -662,11 +662,25 @@ pub trait Parser: Send + Sync {
 
 ### Tasks
 
-- [ ] **M5-T1**: Implement subgraph extraction
+- [x] **M5-T1**: Implement subgraph extraction
   - Extract by service names (include neighbors)
   - Extract by path pattern (APIs matching route)
   - Relevance scoring based on edge distance
   - **Files**: `forge-graph/src/query.rs`
+  - **Implementation Notes**:
+    - Created `SubgraphConfig` struct for configuring extraction (seed nodes, max depth, min relevance, edge type filtering)
+    - Created `ScoredNode` struct for nodes with relevance scores and depth
+    - Created `ExtractedSubgraph` struct for holding extraction results
+    - Implemented `extract_subgraph()` method using BFS with depth-limited relevance decay
+    - Implemented `edge_relevance_decay()` function with configurable decay rates per edge type:
+      - CALLS: 0.8, OWNS: 0.9, READS/WRITES: 0.75, READS_SHARED/WRITES_SHARED: 0.7
+      - PUBLISHES/SUBSCRIBES: 0.65, USES: 0.6, IMPLICITLY_COUPLED: 0.5
+    - Supports bidirectional traversal (outgoing edges at full decay, incoming edges at 0.7x multiplier)
+    - Nodes sorted by relevance score (descending)
+    - Edges filtered to only include those between extracted nodes
+    - Exported types in forge-graph lib.rs
+    - 17 comprehensive unit tests covering all functionality
+    - All 69 forge-graph tests passing
 
 - [ ] **M5-T2**: Implement Markdown serializer
   - Service-centric view with sections
@@ -720,7 +734,7 @@ tiktoken-rs = "0.5"
 - [ ] `forge map --format json` produces structured data
 - [ ] `forge map --format mermaid` produces valid diagram syntax
 - [ ] `forge map --budget 4000` stays under token limit
-- [ ] Subgraph extraction correctly filters by service
+- [x] Subgraph extraction correctly filters by service
 
 ---
 
