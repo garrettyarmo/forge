@@ -48,6 +48,7 @@
 //! ```
 
 pub mod adapters;
+pub mod interview;
 pub mod provider;
 
 // Re-export main types for convenience
@@ -57,6 +58,9 @@ pub use provider::{LLMError, LLMProvider, LLMResult, Message, Role};
 pub use adapters::ClaudeAdapter;
 pub use adapters::CodexAdapter;
 pub use adapters::GeminiAdapter;
+
+// Re-export interview types
+pub use interview::{analyze_gaps, analyze_gaps_with_config, ContextGapScore, GapAnalysisConfig, GapReason};
 
 /// Configuration for creating an LLM provider.
 #[derive(Debug, Clone, Default)]

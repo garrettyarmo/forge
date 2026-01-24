@@ -908,10 +908,22 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
     - Supports "claude", "gemini", and "codex" providers
     - 15 unit tests covering factory functionality
 
-- [ ] **M6-T6**: Implement gap analysis
+- [x] **M6-T6**: Implement gap analysis
   - Identify nodes lacking business context
   - Prioritize by centrality (heavily connected = important)
   - **Files**: `forge-llm/src/interview.rs`
+  - **Implementation Notes**:
+    - Created `forge-llm/src/interview.rs` module with full gap analysis
+    - Implemented `ContextGapScore` struct with node_id, score (0.0-1.0), and reasons
+    - Implemented `GapReason` enum: MissingPurpose, MissingOwner, HighCentrality, ImplicitCoupling, SharedResourceWithoutOwner, ComplexWithoutGotchas
+    - Implemented `GapAnalysisConfig` struct for configurable thresholds
+    - Implemented `analyze_gaps()` and `analyze_gaps_with_config()` functions
+    - Analyzes services for: missing purpose/owner, high centrality, implicit couplings, complex services without gotchas
+    - Analyzes databases/queues for: shared access without clear ownership
+    - Score contributions: MissingPurpose (0.3), MissingOwner (0.2), HighCentrality (up to 0.2), ImplicitCoupling (0.15), SharedResource (0.25), ComplexWithoutGotchas (0.1)
+    - Results sorted by score (highest first)
+    - 17 comprehensive unit tests covering all gap detection scenarios
+    - 74 total forge-llm tests passing
 
 - [ ] **M6-T7**: Implement question generation
   - Template-based questions for different node types
