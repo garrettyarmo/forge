@@ -28,6 +28,7 @@ use clap::{Parser, Subcommand};
 mod commands;
 mod config;
 pub mod serializers;
+pub mod token_budget;
 
 /// Forge - Survey and map software ecosystems
 #[derive(Parser)]

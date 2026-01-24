@@ -117,18 +117,17 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
   - ✅ M4-T4: Coupling analysis in survey pipeline
   - ✅ M4-T5: Coupling detection unit tests
   - ✅ M4-T6: Coupling integration tests
-- 🔄 **Milestone 5 (Serialization)**: In Progress
+- ✅ **Milestone 5 (Serialization)**: Complete
   - ✅ M5-T1: Subgraph extraction with relevance scoring
   - ✅ M5-T2: Markdown serializer
   - ✅ M5-T3: JSON serializer
   - ✅ M5-T4: Mermaid serializer
+  - ✅ M5-T5: Token counting (tiktoken-rs cl100k_base, ±5% accuracy)
+  - ✅ M5-T6: Token-budgeted output (BudgetedSerializer with relevance-based detail levels)
   - ✅ M5-T7: forge map command (all formats)
-  - ⏳ M5-T5: Token counting (planned)
-  - ⏳ M5-T6: Token-budgeted output (planned)
-  - ⏳ M5-T8: Serializer tests (partial - tests exist for all serializers)
+  - ✅ M5-T8: Serializer tests (74+ tests covering all serializers and token budgeting)
 
 ### Next Up
-- Milestone 5: Token counting and budgeting
 - Milestone 6: LLM-assisted business context interview
 - Milestone 7: Polish (incremental survey, CLI UX, documentation)
 

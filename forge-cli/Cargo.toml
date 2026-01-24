@@ -32,6 +32,9 @@ tokio = { workspace = true }
 # Time/date handling
 chrono = { workspace = true }
 
+# Token counting for LLM budget management
+tiktoken-rs = "0.6"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }

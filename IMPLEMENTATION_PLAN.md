@@ -747,27 +747,52 @@ pub trait Parser: Send + Sync {
     - 4 new tests added to map command for Mermaid format
     - All tests passing
 
-- [ ] **M5-T5**: Implement token counting
+- [x] **M5-T5**: Implement token counting
   - Use tiktoken-rs for accurate OpenAI tokenization
   - Estimate for Claude (similar tokenizer)
   - **Files**: `forge-cli/src/token_budget.rs`
+  - **Implementation Notes**:
+    - Created `TokenCounter` struct using tiktoken-rs cl100k_base encoding
+    - `count(&self, text: &str) -> usize` method for accurate token counting
+    - `estimate_node_tokens(&self, node, detail_level)` method with Full/Summary/Minimal estimation
+    - `estimate_edge_tokens()` returns ~30 tokens per edge
+    - `estimate_subgraph_tokens()` for full subgraph estimation
+    - Accuracy is within ±5% of tiktoken (matching spec requirement)
+    - 20 comprehensive unit tests covering all functionality
+    - All tests passing
 
-- [ ] **M5-T6**: Implement token-budgeted output
+- [x] **M5-T6**: Implement token-budgeted output
   - Truncate/summarize to fit budget
   - Prioritize by relevance score
   - **Files**: `forge-cli/src/token_budget.rs`
+  - **Implementation Notes**:
+    - Created `BudgetedSerializer` struct that respects token limits
+    - `serialize_within_budget(&self, subgraph, format)` method
+    - Nodes included in order of relevance score (highest first)
+    - Detail level adjusted based on relevance: >0.7 Full, 0.4-0.7 Summary, <0.4 Minimal
+    - Edges included only if both source and target nodes are included
+    - Supports Markdown, JSON, and Mermaid output formats
+    - `fits_within_budget()` and `estimate_tokens()` helper methods
+    - Tests verify budget constraints are respected
+    - All tests passing
 
-- [ ] **M5-T8**: Write tests for serializers
+- [x] **M5-T8**: Write tests for serializers
   - Round-trip tests where applicable
   - Token count accuracy tests
-  - **Files**: `forge-cli/src/serializers/*.rs` (tests)
+  - **Files**: `forge-cli/src/serializers/*.rs` (tests), `forge-cli/src/token_budget.rs` (tests)
+  - **Implementation Notes**:
+    - Markdown serializer: 21 tests
+    - JSON serializer: 15 tests
+    - Mermaid serializer: 18 tests
+    - Token budget: 20 tests including accuracy validation
+    - All 74+ serializer-related tests passing
 
 ### Dependencies
 
 ```toml
 # forge-cli/Cargo.toml additions
 [dependencies]
-tiktoken-rs = "0.5"
+tiktoken-rs = "0.6"
 ```
 
 ### Acceptance Criteria
@@ -775,9 +800,10 @@ tiktoken-rs = "0.5"
 - [x] `forge map --format markdown` produces readable service docs
 - [x] `forge map --format json` produces structured data
 - [x] `forge map --format mermaid` produces valid diagram syntax
-- [ ] `forge map --budget 4000` stays under token limit
+- [x] `forge map --budget 4000` stays under token limit (via BudgetedSerializer)
 - [x] Subgraph extraction correctly filters by service
 - [x] `forge map --service` filters output to specific services
+- [x] Token counting is accurate within ±5% of tiktoken
 
 ---
 
