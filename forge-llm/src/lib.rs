@@ -17,6 +17,7 @@
 //!
 //! - `claude` - Claude Code CLI adapter (see [`adapters::ClaudeAdapter`])
 //! - `gemini` - Google Gemini CLI adapter (see [`adapters::GeminiAdapter`])
+//! - `codex` - OpenAI Codex CLI adapter (see [`adapters::CodexAdapter`])
 //!
 //! # Example
 //!
@@ -54,6 +55,7 @@ pub use provider::{LLMError, LLMProvider, LLMResult, Message, Role};
 
 // Re-export adapters
 pub use adapters::ClaudeAdapter;
+pub use adapters::CodexAdapter;
 pub use adapters::GeminiAdapter;
 
 /// Configuration for creating an LLM provider.
@@ -100,6 +102,7 @@ impl LLMConfig {
 /// # Supported Providers
 /// - `"claude"` - Claude Code CLI
 /// - `"gemini"` - Google Gemini CLI
+/// - `"codex"` - OpenAI Codex CLI
 ///
 /// # Example
 ///
@@ -114,8 +117,9 @@ pub fn create_provider(config: &LLMConfig) -> Result<Box<dyn LLMProvider>, LLMEr
     match config.provider.as_str() {
         "claude" => Ok(Box::new(ClaudeAdapter::new(config.cli_path.clone()))),
         "gemini" => Ok(Box::new(GeminiAdapter::new(config.cli_path.clone()))),
+        "codex" => Ok(Box::new(CodexAdapter::new(config.cli_path.clone()))),
         other => Err(LLMError::NotConfigured(format!(
-            "Unknown provider: '{}'. Supported providers: claude, gemini",
+            "Unknown provider: '{}'. Supported providers: claude, gemini, codex",
             other
         ))),
     }
@@ -207,6 +211,20 @@ mod tests {
     }
 
     #[test]
+    fn test_create_provider_codex() {
+        let config = LLMConfig::new("codex");
+        let provider = create_provider(&config).unwrap();
+        assert_eq!(provider.name(), "codex");
+    }
+
+    #[test]
+    fn test_create_provider_codex_with_custom_path() {
+        let config = LLMConfig::new("codex").with_cli_path("/custom/codex");
+        let provider = create_provider(&config).unwrap();
+        assert_eq!(provider.name(), "codex");
+    }
+
+    #[test]
     fn test_create_provider_unknown() {
         let config = LLMConfig::new("unknown-provider");
         let result = create_provider(&config);
@@ -232,6 +250,14 @@ mod tests {
     async fn test_create_and_verify_gemini_unavailable() {
         // Use a fake path that doesn't exist
         let config = LLMConfig::new("gemini").with_cli_path("/nonexistent/path/gemini");
+        let result = create_and_verify_provider(&config).await;
+        assert!(matches!(result, Err(LLMError::CliNotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn test_create_and_verify_codex_unavailable() {
+        // Use a fake path that doesn't exist
+        let config = LLMConfig::new("codex").with_cli_path("/nonexistent/path/codex");
         let result = create_and_verify_provider(&config).await;
         assert!(matches!(result, Err(LLMError::CliNotFound(_))));
     }

@@ -881,10 +881,20 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
     - 12 unit tests passing covering adapter functionality
     - 45 total forge-llm tests passing
 
-- [ ] **M6-T4**: Implement Codex CLI adapter
+- [x] **M6-T4**: Implement Codex CLI adapter
   - Shell out to Codex CLI tool
   - Same stdin/stdout pattern as Claude adapter
   - **Files**: `forge-llm/src/adapters/codex.rs`
+  - **Implementation Notes**:
+    - Created `CodexAdapter` struct wrapping `CliAdapter` base
+    - Uses `System: ... User: ...` prompt format for OpenAI-style interaction
+    - Default 180-second timeout
+    - Formats conversation history as `User: ... / Assistant: ...`
+    - Implements full `LLMProvider` trait including `prompt_with_history()`
+    - Added to adapters module with re-export
+    - Updated `create_provider()` factory to support "codex" provider
+    - 12 unit tests passing covering adapter functionality
+    - 59 total forge-llm tests passing
 
 - [x] **M6-T5**: Implement provider selection from config
   - Read `llm.provider` from forge.yaml
@@ -895,8 +905,8 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
     - Implemented `LLMConfig` struct with `provider` and `cli_path` fields
     - Implemented `create_provider()` factory function for synchronous provider creation
     - Implemented `create_and_verify_provider()` async factory that checks CLI availability
-    - Supports "claude" and "gemini" providers (codex adapter pending M6-T4)
-    - 10 unit tests covering factory functionality
+    - Supports "claude", "gemini", and "codex" providers
+    - 15 unit tests covering factory functionality
 
 - [ ] **M6-T6**: Implement gap analysis
   - Identify nodes lacking business context

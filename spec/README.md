@@ -77,9 +77,43 @@ The survey phase is **purely deterministic** using tree-sitter AST parsing only 
 
 _To be implemented in future milestones_
 
-## LLM Integration
+## LLM Integration (forge-llm)
 
-_Milestone 6: Business context interview using CLI adapters for Claude, Gemini, Codex_
+Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than making direct API calls. This approach leverages user's existing CLI authentication and avoids storing API keys in forge.yaml.
+
+### LLM Provider Trait
+- `LLMProvider` async trait with `name()`, `is_available()`, `prompt()`, and `prompt_with_history()` methods
+- `LLMError` enum for comprehensive error handling (ProcessFailed, NonZeroExit, InvalidOutput, CliNotFound, Timeout, NotConfigured)
+- `Message` struct with `Role` enum for conversation history support
+- Status: Complete (M6-T1)
+
+### CLI Adapters
+- **ClaudeAdapter**: Claude Code CLI adapter (`claude`)
+  - Uses `--print` flag for non-interactive mode
+  - `[System: ...]\n\n{user}` prompt format
+  - Status: Complete (M6-T2)
+- **GeminiAdapter**: Google Gemini CLI adapter (`gemini`)
+  - Simpler `{system}\n\n{user}` prompt format
+  - `User: ... / Model: ...` history format
+  - Status: Complete (M6-T3)
+- **CodexAdapter**: OpenAI Codex CLI adapter (`codex`)
+  - `System: ... User: ...` prompt format
+  - `User: ... / Assistant: ...` history format
+  - Status: Complete (M6-T4)
+
+### Provider Factory
+- `create_provider(config)`: Instantiate provider from configuration
+- `create_and_verify_provider(config)`: Create and verify CLI availability
+- Supports: claude, gemini, codex
+- Status: Complete (M6-T5)
+
+### Business Context Interview
+- Gap analysis for identifying nodes lacking business context (M6-T6)
+- Question generation based on node types and relationships (M6-T7)
+- Interactive interview flow with LLM suggestions (M6-T8)
+- Annotation persistence across survey re-runs (M6-T9)
+- `--business-context` flag for survey command (M6-T10)
+- Status: Pending (M6-T6 through M6-T11)
 
 ## Configuration & Security
 
@@ -127,7 +161,20 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
   - ✅ M5-T7: forge map command (all formats)
   - ✅ M5-T8: Serializer tests (74+ tests covering all serializers and token budgeting)
 
+### In Progress
+- **Milestone 6 (Business Context)**: LLM CLI adapters complete, interview flow pending
+  - ✅ M6-T1: LLM provider trait
+  - ✅ M6-T2: Claude CLI adapter
+  - ✅ M6-T3: Gemini CLI adapter
+  - ✅ M6-T4: Codex CLI adapter
+  - ✅ M6-T5: Provider factory
+  - ⏳ M6-T6: Gap analysis
+  - ⏳ M6-T7: Question generation
+  - ⏳ M6-T8: Interview flow
+  - ⏳ M6-T9: Annotation persistence
+  - ⏳ M6-T10: --business-context flag
+  - ⏳ M6-T11: Interview tests
+
 ### Next Up
-- Milestone 6: LLM-assisted business context interview
 - Milestone 7: Polish (incremental survey, CLI UX, documentation)
 
