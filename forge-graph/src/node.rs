@@ -238,6 +238,49 @@ pub struct BusinessContext {
     pub notes: HashMap<String, String>,
 }
 
+impl BusinessContext {
+    /// Merge another BusinessContext into this one.
+    ///
+    /// Existing non-empty values are preserved (not overwritten).
+    /// This allows annotations to persist across re-surveys.
+    ///
+    /// # Arguments
+    /// * `other` - The BusinessContext to merge from
+    ///
+    /// # Merge Rules
+    /// - Purpose, owner, and history are only set if this field is `None`
+    /// - Gotchas are merged (deduplicated)
+    /// - Notes are merged (existing keys are not overwritten)
+    pub fn merge(&mut self, other: &BusinessContext) {
+        // Only update if we don't have a value
+        if self.purpose.is_none() {
+            self.purpose = other.purpose.clone();
+        }
+
+        if self.owner.is_none() {
+            self.owner = other.owner.clone();
+        }
+
+        if self.history.is_none() {
+            self.history = other.history.clone();
+        }
+
+        // Merge gotchas (deduplicate)
+        for gotcha in &other.gotchas {
+            if !self.gotchas.contains(gotcha) {
+                self.gotchas.push(gotcha.clone());
+            }
+        }
+
+        // Merge notes (don't overwrite existing keys)
+        for (key, value) in &other.notes {
+            if !self.notes.contains_key(key) {
+                self.notes.insert(key.clone(), value.clone());
+            }
+        }
+    }
+}
+
 /// Where a node was discovered from.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

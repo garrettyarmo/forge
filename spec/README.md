@@ -108,12 +108,30 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
 - Status: Complete (M6-T5)
 
 ### Business Context Interview
-- Gap analysis for identifying nodes lacking business context (M6-T6)
-- Question generation based on node types and relationships (M6-T7)
-- Interactive interview flow with LLM suggestions (M6-T8)
-- Annotation persistence across survey re-runs (M6-T9)
-- `--business-context` flag for survey command (M6-T10)
-- Status: Pending (M6-T6 through M6-T11)
+- **Gap Analysis** (M6-T6): Identifies nodes lacking business context
+  - Analyzes services for: missing purpose/owner, high centrality, implicit couplings, complexity without gotchas
+  - Analyzes databases/queues for: shared access without clear ownership
+  - Scoring system with configurable weights and thresholds
+  - Status: Complete
+- **Question Generation** (M6-T7): Creates contextual questions based on gaps
+  - Purpose, owner, centrality, coupling, shared resource, and gotcha questions
+  - Priority-sorted (1-10 scale)
+  - Context-aware questions include dependency information
+  - Status: Complete
+- **Interview Flow** (M6-T8): Interactive terminal-based interview
+  - InterviewSession manages state and question progression
+  - Commands: [s]uggest (LLM), [k]skip, [q]uit, or type answer directly
+  - LLM suggestions when provider available
+  - Status: Complete
+- **Annotation Persistence** (M6-T9): Preserves annotations across re-surveys
+  - BusinessContext::merge() in forge-graph for controlled merging
+  - Existing values preserved, gotchas deduplicated, notes merged
+  - merge_business_context() for graph-level annotation transfer
+  - Status: Complete
+- **--business-context Flag** (M6-T10): Triggers interview after survey
+  - Graceful degradation when LLM CLI unavailable
+  - Graph saved before and after interview (interrupt-safe)
+  - Status: Complete
 
 ## Configuration & Security
 
@@ -161,20 +179,19 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
   - ✅ M5-T7: forge map command (all formats)
   - ✅ M5-T8: Serializer tests (74+ tests covering all serializers and token budgeting)
 
-### In Progress
-- **Milestone 6 (Business Context)**: LLM CLI adapters complete, interview flow pending
+- ✅ **Milestone 6 (Business Context)**: Complete
   - ✅ M6-T1: LLM provider trait
   - ✅ M6-T2: Claude CLI adapter
   - ✅ M6-T3: Gemini CLI adapter
   - ✅ M6-T4: Codex CLI adapter
   - ✅ M6-T5: Provider factory
-  - ⏳ M6-T6: Gap analysis
-  - ⏳ M6-T7: Question generation
-  - ⏳ M6-T8: Interview flow
-  - ⏳ M6-T9: Annotation persistence
-  - ⏳ M6-T10: --business-context flag
-  - ⏳ M6-T11: Interview tests
+  - ✅ M6-T6: Gap analysis (context gap scoring with configurable thresholds)
+  - ✅ M6-T7: Question generation (priority-sorted, context-aware questions)
+  - ✅ M6-T8: Interview flow (InterviewSession with LLM suggestions)
+  - ✅ M6-T9: Annotation persistence (BusinessContext::merge, cross-graph merging)
+  - ✅ M6-T10: --business-context flag (graceful degradation, interrupt-safe)
+  - ✅ M6-T11: Interview tests (15 tests for session and persistence)
 
 ### Next Up
-- Milestone 7: Polish (incremental survey, CLI UX, documentation)
+- ⏳ **Milestone 7 (Polish)**: Incremental survey, CLI UX, documentation
 

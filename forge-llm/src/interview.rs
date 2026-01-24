@@ -115,10 +115,7 @@ impl GapReason {
                 format!("High centrality with {} connections", edge_count)
             }
             GapReason::ImplicitCoupling { coupled_services } => {
-                format!(
-                    "Implicitly coupled with: {}",
-                    coupled_services.join(", ")
-                )
+                format!("Implicitly coupled with: {}", coupled_services.join(", "))
             }
             GapReason::SharedResourceWithoutOwner { accessor_services } => {
                 format!(
@@ -228,10 +225,7 @@ pub fn analyze_gaps_with_config(
     }
 
     // Convert to sorted vector
-    let mut result: Vec<_> = scores
-        .into_values()
-        .filter(|s| s.score > 0.0)
-        .collect();
+    let mut result: Vec<_> = scores.into_values().filter(|s| s.score > 0.0).collect();
     result.sort_by(|a, b| {
         b.score
             .partial_cmp(&a.score)
@@ -281,8 +275,7 @@ fn analyze_service_gaps(
 
     if total_edges >= config.high_centrality_threshold {
         // Scale score based on how many edges above threshold
-        let centrality_score =
-            config.max_centrality_score * (total_edges as f64 / 10.0).min(1.0);
+        let centrality_score = config.max_centrality_score * (total_edges as f64 / 10.0).min(1.0);
         gap_score.add_reason(
             GapReason::HighCentrality {
                 edge_count: total_edges,
@@ -532,10 +525,7 @@ pub fn generate_questions(
                 questions.push(generate_coupling_question(node, coupled_services, graph));
             }
             GapReason::SharedResourceWithoutOwner { accessor_services } => {
-                questions.push(generate_shared_resource_question(
-                    node,
-                    accessor_services,
-                ));
+                questions.push(generate_shared_resource_question(node, accessor_services));
             }
             GapReason::ComplexWithoutGotchas { .. } => {
                 questions.push(generate_gotcha_question(node, graph));
@@ -736,6 +726,430 @@ fn generate_gotcha_question(node: &Node, graph: &ForgeGraph) -> InterviewQuestio
     )
 }
 
+// ============================================================================
+// Interview Flow (M6-T8)
+// ============================================================================
+
+use crate::provider::{LLMProvider, LLMResult};
+use std::collections::HashMap as StdHashMap;
+use std::io::{self, Write};
+
+/// Update to apply to a node's business context annotation.
+#[derive(Debug, Clone)]
+pub struct AnnotationUpdate {
+    /// Type of annotation being updated.
+    pub annotation_type: AnnotationType,
+    /// Value to set.
+    pub value: String,
+}
+
+/// Interactive interview session state.
+///
+/// Manages the flow of asking questions about nodes in the graph
+/// and collecting answers to update business context annotations.
+pub struct InterviewSession {
+    /// Questions to ask during this session
+    questions: Vec<InterviewQuestion>,
+
+    /// Current question index
+    current_index: usize,
+
+    /// Collected answers keyed by node ID
+    answers: StdHashMap<NodeId, Vec<AnnotationUpdate>>,
+
+    /// LLM provider for suggestions (optional)
+    provider: Option<Box<dyn LLMProvider>>,
+}
+
+impl InterviewSession {
+    /// Create a new interview session from a graph.
+    ///
+    /// Analyzes the graph for context gaps and generates questions
+    /// sorted by priority.
+    pub fn new(graph: &ForgeGraph) -> Self {
+        let questions = generate_all_questions(graph);
+
+        Self {
+            questions,
+            current_index: 0,
+            answers: StdHashMap::new(),
+            provider: None,
+        }
+    }
+
+    /// Create an interview session with LLM support for answer suggestions.
+    pub fn with_provider(graph: &ForgeGraph, provider: Box<dyn LLMProvider>) -> Self {
+        let questions = generate_all_questions(graph);
+
+        Self {
+            questions,
+            current_index: 0,
+            answers: StdHashMap::new(),
+            provider: Some(provider),
+        }
+    }
+
+    /// Total number of questions in this session.
+    pub fn total_questions(&self) -> usize {
+        self.questions.len()
+    }
+
+    /// Current question number (1-based for display).
+    pub fn current_question_number(&self) -> usize {
+        self.current_index + 1
+    }
+
+    /// Check if the interview is complete.
+    pub fn is_complete(&self) -> bool {
+        self.current_index >= self.questions.len()
+    }
+
+    /// Get the current question.
+    pub fn current_question(&self) -> Option<&InterviewQuestion> {
+        self.questions.get(self.current_index)
+    }
+
+    /// Submit an answer for the current question.
+    pub fn submit_answer(&mut self, answer: &str) {
+        if let Some(question) = self.questions.get(self.current_index) {
+            let update = AnnotationUpdate {
+                annotation_type: question.annotation_type,
+                value: answer.to_string(),
+            };
+
+            self.answers
+                .entry(question.node_id.clone())
+                .or_default()
+                .push(update);
+        }
+
+        self.current_index += 1;
+    }
+
+    /// Skip the current question without answering.
+    pub fn skip(&mut self) {
+        self.current_index += 1;
+    }
+
+    /// Get the number of answers collected so far.
+    pub fn answer_count(&self) -> usize {
+        self.answers.values().map(|v| v.len()).sum()
+    }
+
+    /// Get the collected answers.
+    pub fn answers(&self) -> &StdHashMap<NodeId, Vec<AnnotationUpdate>> {
+        &self.answers
+    }
+
+    /// Apply collected answers to the graph.
+    ///
+    /// Updates business context annotations on nodes based on
+    /// the answers collected during the interview.
+    pub fn apply_to_graph(&self, graph: &mut ForgeGraph) {
+        use forge_graph::BusinessContext;
+
+        for (node_id, updates) in &self.answers {
+            if let Some(node) = graph.get_node_mut(node_id) {
+                let bc = node
+                    .business_context
+                    .get_or_insert_with(BusinessContext::default);
+
+                for update in updates {
+                    match update.annotation_type {
+                        AnnotationType::Purpose => {
+                            bc.purpose = Some(update.value.clone());
+                        }
+                        AnnotationType::Owner => {
+                            bc.owner = Some(update.value.clone());
+                        }
+                        AnnotationType::History => {
+                            bc.history = Some(update.value.clone());
+                        }
+                        AnnotationType::Gotcha => {
+                            // Avoid duplicate gotchas
+                            if !bc.gotchas.contains(&update.value) {
+                                bc.gotchas.push(update.value.clone());
+                            }
+                        }
+                        AnnotationType::Note => {
+                            // Generate unique key for notes
+                            let key = format!("note_{}", bc.notes.len() + 1);
+                            bc.notes.insert(key, update.value.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Generate an LLM-assisted answer suggestion for a question.
+    ///
+    /// Returns `None` if no LLM provider is configured.
+    pub async fn suggest_answer(&self, question: &InterviewQuestion) -> Option<LLMResult<String>> {
+        let provider = self.provider.as_ref()?;
+
+        let system = r#"You are helping document a software ecosystem. Based on the context provided, suggest a concise answer to the question. If you cannot determine the answer from context alone, say "Unable to determine from available context - please provide this information manually."
+
+Keep answers brief (1-3 sentences) and focused."#;
+
+        let user = format!(
+            "Context: {}\n\nQuestion: {}",
+            question.context, question.question
+        );
+
+        Some(provider.prompt(system, &user).await)
+    }
+
+    /// Check if LLM suggestions are available.
+    pub fn has_llm_support(&self) -> bool {
+        self.provider.is_some()
+    }
+}
+
+/// Result of an interactive interview.
+#[derive(Debug)]
+pub struct InterviewResult {
+    /// Number of questions asked.
+    pub questions_asked: usize,
+    /// Number of questions answered.
+    pub questions_answered: usize,
+    /// Number of questions skipped.
+    pub questions_skipped: usize,
+    /// Whether the interview was completed or quit early.
+    pub completed: bool,
+}
+
+/// Run an interactive terminal interview.
+///
+/// This function provides a terminal-based UI for conducting business
+/// context interviews. It displays questions one at a time and collects
+/// answers from the user.
+///
+/// # Arguments
+/// * `graph` - The knowledge graph to update with collected answers
+/// * `provider` - Optional LLM provider for answer suggestions
+///
+/// # Returns
+/// An `InterviewResult` summarizing the interview session.
+///
+/// # Commands
+/// During the interview, users can:
+/// - Type an answer directly to submit it
+/// - `s` or `suggest` - Get an LLM-suggested answer (if provider available)
+/// - `k` or `skip` - Skip the current question
+/// - `q` or `quit` - End the interview early
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use forge_llm::{LLMConfig, create_provider, run_interactive_interview};
+/// use forge_graph::ForgeGraph;
+///
+/// let mut graph = ForgeGraph::load_from_file("graph.json")?;
+/// let provider = create_provider(&LLMConfig::new("claude"))?;
+///
+/// let result = run_interactive_interview(&mut graph, Some(provider)).await?;
+/// println!("Answered {} questions", result.questions_answered);
+///
+/// graph.save_to_file("graph.json")?;
+/// ```
+pub async fn run_interactive_interview(
+    graph: &mut ForgeGraph,
+    provider: Option<Box<dyn LLMProvider>>,
+) -> Result<InterviewResult, InterviewError> {
+    let mut session = if let Some(p) = provider {
+        InterviewSession::with_provider(graph, p)
+    } else {
+        InterviewSession::new(graph)
+    };
+
+    if session.total_questions() == 0 {
+        println!("No context gaps detected - graph is well-documented!");
+        return Ok(InterviewResult {
+            questions_asked: 0,
+            questions_answered: 0,
+            questions_skipped: 0,
+            completed: true,
+        });
+    }
+
+    println!();
+    println!("Business Context Interview");
+    println!("==========================");
+    println!(
+        "Found {} questions to help document your ecosystem.",
+        session.total_questions()
+    );
+    println!();
+
+    if session.has_llm_support() {
+        println!("Commands: [s]uggest (LLM), [k]skip, [q]uit, or type answer directly");
+    } else {
+        println!("Commands: [k]skip, [q]uit, or type answer directly");
+    }
+    println!();
+
+    let mut questions_answered = 0;
+    let mut questions_skipped = 0;
+    let mut completed = true;
+
+    while !session.is_complete() {
+        let question = session.current_question().unwrap();
+
+        println!(
+            "Question {}/{}",
+            session.current_question_number(),
+            session.total_questions()
+        );
+        println!("About: {}", question.node_id.name());
+        println!("Type: {}", question.annotation_type.display_name());
+        println!();
+        println!("Context: {}", question.context);
+        println!();
+        println!("{}", question.question);
+        println!();
+
+        print!("> ");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+
+        match input.to_lowercase().as_str() {
+            "s" | "suggest" => {
+                if session.has_llm_support() {
+                    println!("Getting suggestion from LLM...");
+                    match session.suggest_answer(question).await {
+                        Some(Ok(suggestion)) => {
+                            println!();
+                            println!("Suggested answer: {}", suggestion);
+                            println!();
+                            println!("Accept? [y]es, [n]o, [e]dit");
+                            print!("> ");
+                            io::stdout().flush()?;
+
+                            let mut response = String::new();
+                            io::stdin().read_line(&mut response)?;
+                            let response = response.trim().to_lowercase();
+
+                            match response.as_str() {
+                                "y" | "yes" => {
+                                    session.submit_answer(&suggestion);
+                                    questions_answered += 1;
+                                    println!("Answer accepted.");
+                                }
+                                "e" | "edit" => {
+                                    print!("Your edited answer: ");
+                                    io::stdout().flush()?;
+                                    let mut edited = String::new();
+                                    io::stdin().read_line(&mut edited)?;
+                                    let edited = edited.trim();
+                                    if !edited.is_empty() {
+                                        session.submit_answer(edited);
+                                        questions_answered += 1;
+                                        println!("Answer saved.");
+                                    } else {
+                                        session.skip();
+                                        questions_skipped += 1;
+                                        println!("Skipped.");
+                                    }
+                                }
+                                _ => {
+                                    session.skip();
+                                    questions_skipped += 1;
+                                    println!("Skipped.");
+                                }
+                            }
+                        }
+                        Some(Err(e)) => {
+                            println!("LLM error: {}. Please answer manually.", e);
+                        }
+                        None => {
+                            println!("LLM not available.");
+                        }
+                    }
+                } else {
+                    println!("LLM suggestions not available. Please type your answer.");
+                }
+            }
+            "k" | "skip" => {
+                session.skip();
+                questions_skipped += 1;
+                println!("Skipped.");
+            }
+            "q" | "quit" => {
+                println!("Interview ended early. Saving collected answers...");
+                completed = false;
+                break;
+            }
+            "" => {
+                println!("Please enter an answer, or use [s]uggest/[k]skip/[q]uit.");
+            }
+            _ => {
+                // Treat as direct answer
+                session.submit_answer(input);
+                questions_answered += 1;
+                println!("Answer saved.");
+            }
+        }
+
+        println!();
+    }
+
+    // Apply answers to graph
+    session.apply_to_graph(graph);
+
+    if completed {
+        println!("Interview complete!");
+    }
+    println!(
+        "Answered {} questions, skipped {}.",
+        questions_answered, questions_skipped
+    );
+
+    Ok(InterviewResult {
+        questions_asked: session.current_index,
+        questions_answered,
+        questions_skipped,
+        completed,
+    })
+}
+
+/// Error type for interview operations.
+#[derive(Debug, thiserror::Error)]
+pub enum InterviewError {
+    /// IO error during terminal interaction.
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+}
+
+// ============================================================================
+// Annotation Persistence (M6-T9)
+// ============================================================================
+
+/// Merge business context from an existing graph into a new graph.
+///
+/// This function preserves business context annotations when re-surveying.
+/// Nodes in the new graph will have their business context updated with
+/// annotations from matching nodes in the existing graph.
+///
+/// # Arguments
+/// * `new_graph` - The newly surveyed graph to update
+/// * `existing_graph` - The existing graph with business context annotations
+pub fn merge_business_context(new_graph: &mut ForgeGraph, existing_graph: &ForgeGraph) {
+    for existing_node in existing_graph.nodes() {
+        if let Some(existing_bc) = &existing_node.business_context {
+            if let Some(new_node) = new_graph.get_node_mut(&existing_node.id) {
+                let bc = new_node
+                    .business_context
+                    .get_or_insert_with(forge_graph::BusinessContext::default);
+                bc.merge(existing_bc);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -783,10 +1197,12 @@ mod tests {
         let gaps = analyze_gaps(&graph);
 
         assert!(!gaps.is_empty());
-        assert!(gaps[0]
-            .reasons
-            .iter()
-            .any(|r| matches!(r, GapReason::MissingPurpose)));
+        assert!(
+            gaps[0]
+                .reasons
+                .iter()
+                .any(|r| matches!(r, GapReason::MissingPurpose))
+        );
     }
 
     #[test]
@@ -799,10 +1215,12 @@ mod tests {
         let gaps = analyze_gaps(&graph);
 
         assert!(!gaps.is_empty());
-        assert!(gaps[0]
-            .reasons
-            .iter()
-            .any(|r| matches!(r, GapReason::MissingOwner)));
+        assert!(
+            gaps[0]
+                .reasons
+                .iter()
+                .any(|r| matches!(r, GapReason::MissingOwner))
+        );
     }
 
     #[test]
@@ -824,14 +1242,18 @@ mod tests {
 
         // Should have no gaps for purpose/owner
         if !gaps.is_empty() {
-            assert!(!gaps[0]
-                .reasons
-                .iter()
-                .any(|r| matches!(r, GapReason::MissingPurpose)));
-            assert!(!gaps[0]
-                .reasons
-                .iter()
-                .any(|r| matches!(r, GapReason::MissingOwner)));
+            assert!(
+                !gaps[0]
+                    .reasons
+                    .iter()
+                    .any(|r| matches!(r, GapReason::MissingPurpose))
+            );
+            assert!(
+                !gaps[0]
+                    .reasons
+                    .iter()
+                    .any(|r| matches!(r, GapReason::MissingOwner))
+            );
         }
     }
 
@@ -865,11 +1287,13 @@ mod tests {
         let central_gap = gaps.iter().find(|g| g.node_id == central_id);
 
         assert!(central_gap.is_some());
-        assert!(central_gap
-            .unwrap()
-            .reasons
-            .iter()
-            .any(|r| matches!(r, GapReason::HighCentrality { edge_count: 6 })));
+        assert!(
+            central_gap
+                .unwrap()
+                .reasons
+                .iter()
+                .any(|r| matches!(r, GapReason::HighCentrality { edge_count: 6 }))
+        );
     }
 
     #[test]
@@ -994,10 +1418,11 @@ mod tests {
 
         // Either no gap for database, or no SharedResourceWithoutOwner reason
         if let Some(gap) = db_gap {
-            assert!(!gap
-                .reasons
-                .iter()
-                .any(|r| matches!(r, GapReason::SharedResourceWithoutOwner { .. })));
+            assert!(
+                !gap.reasons
+                    .iter()
+                    .any(|r| matches!(r, GapReason::SharedResourceWithoutOwner { .. }))
+            );
         }
     }
 
@@ -1029,11 +1454,13 @@ mod tests {
         let complex_gap = gaps.iter().find(|g| g.node_id == complex_id);
 
         assert!(complex_gap.is_some());
-        assert!(complex_gap
-            .unwrap()
-            .reasons
-            .iter()
-            .any(|r| matches!(r, GapReason::ComplexWithoutGotchas { .. })));
+        assert!(
+            complex_gap
+                .unwrap()
+                .reasons
+                .iter()
+                .any(|r| matches!(r, GapReason::ComplexWithoutGotchas { .. }))
+        );
     }
 
     #[test]
@@ -1072,10 +1499,11 @@ mod tests {
 
         // Should not have ComplexWithoutGotchas reason
         if let Some(gap) = complex_gap {
-            assert!(!gap
-                .reasons
-                .iter()
-                .any(|r| matches!(r, GapReason::ComplexWithoutGotchas { .. })));
+            assert!(
+                !gap.reasons
+                    .iter()
+                    .any(|r| matches!(r, GapReason::ComplexWithoutGotchas { .. }))
+            );
         }
     }
 
@@ -1191,17 +1619,13 @@ mod tests {
 
     #[test]
     fn test_score_capped_at_one() {
-        let mut gap_score = ContextGapScore::new(
-            NodeId::new(NodeType::Service, "ns", "test").unwrap(),
-        );
+        let mut gap_score =
+            ContextGapScore::new(NodeId::new(NodeType::Service, "ns", "test").unwrap());
 
         // Add reasons that would sum to more than 1.0
         gap_score.add_reason(GapReason::MissingPurpose, 0.5);
         gap_score.add_reason(GapReason::MissingOwner, 0.5);
-        gap_score.add_reason(
-            GapReason::HighCentrality { edge_count: 10 },
-            0.5,
-        );
+        gap_score.add_reason(GapReason::HighCentrality { edge_count: 10 }, 0.5);
 
         // Score should be capped at 1.0
         assert_eq!(gap_score.score, 1.0);
@@ -1458,14 +1882,17 @@ mod tests {
             .collect();
 
         // Should not have purpose or owner questions
-        assert!(!doc_questions
-            .iter()
-            .any(|q| q.annotation_type == AnnotationType::Purpose
-                && q.question.contains("business purpose")));
-        assert!(!doc_questions
-            .iter()
-            .any(|q| q.annotation_type == AnnotationType::Owner
-                && q.question.contains("owns")));
+        assert!(
+            !doc_questions
+                .iter()
+                .any(|q| q.annotation_type == AnnotationType::Purpose
+                    && q.question.contains("business purpose"))
+        );
+        assert!(
+            !doc_questions
+                .iter()
+                .any(|q| q.annotation_type == AnnotationType::Owner && q.question.contains("owns"))
+        );
     }
 
     #[test]
@@ -1536,11 +1963,322 @@ mod tests {
         let questions = generate_questions(node, &graph, gap);
 
         // Purpose question should include dependency context
-        let purpose_q = questions
-            .iter()
-            .find(|q| q.annotation_type == AnnotationType::Purpose
-                && q.question.contains("business purpose"));
+        let purpose_q = questions.iter().find(|q| {
+            q.annotation_type == AnnotationType::Purpose && q.question.contains("business purpose")
+        });
         assert!(purpose_q.is_some());
         assert!(purpose_q.unwrap().context.contains("Users Database"));
+    }
+
+    // ========================================================================
+    // Interview Session Tests (M6-T8)
+    // ========================================================================
+
+    #[test]
+    fn test_interview_session_creation() {
+        let mut graph = ForgeGraph::new();
+        let node = create_test_service("ns", "test-svc", "Test Service");
+        graph.add_node(node).unwrap();
+
+        let session = InterviewSession::new(&graph);
+
+        assert!(session.total_questions() > 0);
+        assert_eq!(session.current_question_number(), 1);
+        assert!(!session.is_complete());
+        assert!(!session.has_llm_support());
+    }
+
+    #[test]
+    fn test_interview_session_empty_graph() {
+        let graph = ForgeGraph::new();
+        let session = InterviewSession::new(&graph);
+
+        assert_eq!(session.total_questions(), 0);
+        assert!(session.is_complete());
+    }
+
+    #[test]
+    fn test_interview_session_submit_answer() {
+        let mut graph = ForgeGraph::new();
+        let node = create_test_service("ns", "test-svc", "Test Service");
+        graph.add_node(node).unwrap();
+
+        let mut session = InterviewSession::new(&graph);
+        let initial_index = session.current_question_number();
+
+        session.submit_answer("This service handles authentication");
+
+        assert_eq!(session.current_question_number(), initial_index + 1);
+        assert_eq!(session.answer_count(), 1);
+    }
+
+    #[test]
+    fn test_interview_session_skip() {
+        let mut graph = ForgeGraph::new();
+        let node = create_test_service("ns", "test-svc", "Test Service");
+        graph.add_node(node).unwrap();
+
+        let mut session = InterviewSession::new(&graph);
+        let initial_index = session.current_question_number();
+
+        session.skip();
+
+        assert_eq!(session.current_question_number(), initial_index + 1);
+        assert_eq!(session.answer_count(), 0);
+    }
+
+    #[test]
+    fn test_interview_session_apply_to_graph() {
+        let mut graph = ForgeGraph::new();
+        let node = create_test_service("ns", "test-svc", "Test Service");
+        graph.add_node(node).unwrap();
+
+        let mut session = InterviewSession::new(&graph);
+
+        // Answer the purpose question
+        if let Some(q) = session.current_question() {
+            if q.annotation_type == AnnotationType::Purpose {
+                session.submit_answer("Handles user authentication");
+            } else {
+                session.skip();
+            }
+        }
+
+        // Answer the owner question
+        while !session.is_complete() {
+            if let Some(q) = session.current_question() {
+                if q.annotation_type == AnnotationType::Owner {
+                    session.submit_answer("Auth Team");
+                    break;
+                } else {
+                    session.skip();
+                }
+            }
+        }
+
+        // Apply to graph
+        session.apply_to_graph(&mut graph);
+
+        let node_id = NodeId::new(NodeType::Service, "ns", "test-svc").unwrap();
+        let updated_node = graph.get_node(&node_id).unwrap();
+
+        assert!(updated_node.business_context.is_some());
+        let bc = updated_node.business_context.as_ref().unwrap();
+
+        // At least one of these should be set
+        let has_annotations = bc.purpose.is_some() || bc.owner.is_some();
+        assert!(has_annotations);
+    }
+
+    #[test]
+    fn test_interview_session_multiple_answers_same_node() {
+        let mut graph = ForgeGraph::new();
+        let node = create_test_service("ns", "test-svc", "Test Service");
+        graph.add_node(node).unwrap();
+
+        let mut session = InterviewSession::new(&graph);
+
+        // Answer multiple questions
+        while !session.is_complete() {
+            if let Some(q) = session.current_question() {
+                match q.annotation_type {
+                    AnnotationType::Purpose => {
+                        session.submit_answer("Handles authentication");
+                    }
+                    AnnotationType::Owner => {
+                        session.submit_answer("Auth Team");
+                    }
+                    AnnotationType::Gotcha => {
+                        session.submit_answer("Rate limited to 100 req/s");
+                    }
+                    _ => session.skip(),
+                }
+            }
+        }
+
+        session.apply_to_graph(&mut graph);
+
+        let node_id = NodeId::new(NodeType::Service, "ns", "test-svc").unwrap();
+        let updated_node = graph.get_node(&node_id).unwrap();
+        let bc = updated_node.business_context.as_ref().unwrap();
+
+        // Verify annotations were applied
+        if bc.purpose.is_some() {
+            assert_eq!(bc.purpose.as_ref().unwrap(), "Handles authentication");
+        }
+        if bc.owner.is_some() {
+            assert_eq!(bc.owner.as_ref().unwrap(), "Auth Team");
+        }
+    }
+
+    #[test]
+    fn test_annotation_update() {
+        let update = AnnotationUpdate {
+            annotation_type: AnnotationType::Purpose,
+            value: "Test purpose".to_string(),
+        };
+
+        assert_eq!(update.annotation_type, AnnotationType::Purpose);
+        assert_eq!(update.value, "Test purpose");
+    }
+
+    // ========================================================================
+    // Annotation Persistence Tests (M6-T9)
+    // ========================================================================
+
+    #[test]
+    fn test_business_context_merge_preserves_existing() {
+        let mut bc1 = BusinessContext {
+            purpose: Some("Original purpose".to_string()),
+            owner: None,
+            history: None,
+            gotchas: vec!["Gotcha 1".to_string()],
+            notes: Default::default(),
+        };
+
+        let bc2 = BusinessContext {
+            purpose: Some("New purpose".to_string()), // Should NOT overwrite
+            owner: Some("New Team".to_string()),      // Should be added
+            history: Some("History info".to_string()), // Should be added
+            gotchas: vec!["Gotcha 2".to_string()],    // Should be merged
+            notes: Default::default(),
+        };
+
+        bc1.merge(&bc2);
+
+        // Original purpose should be preserved
+        assert_eq!(bc1.purpose, Some("Original purpose".to_string()));
+
+        // New owner should be added
+        assert_eq!(bc1.owner, Some("New Team".to_string()));
+
+        // History should be added
+        assert_eq!(bc1.history, Some("History info".to_string()));
+
+        // Gotchas should be merged (both should exist)
+        assert!(bc1.gotchas.contains(&"Gotcha 1".to_string()));
+        assert!(bc1.gotchas.contains(&"Gotcha 2".to_string()));
+    }
+
+    #[test]
+    fn test_business_context_merge_deduplicates_gotchas() {
+        let mut bc1 = BusinessContext {
+            purpose: None,
+            owner: None,
+            history: None,
+            gotchas: vec!["Same gotcha".to_string()],
+            notes: Default::default(),
+        };
+
+        let bc2 = BusinessContext {
+            purpose: None,
+            owner: None,
+            history: None,
+            gotchas: vec!["Same gotcha".to_string(), "Different gotcha".to_string()],
+            notes: Default::default(),
+        };
+
+        bc1.merge(&bc2);
+
+        // Should have exactly 2 gotchas (no duplicate)
+        assert_eq!(bc1.gotchas.len(), 2);
+        assert!(bc1.gotchas.contains(&"Same gotcha".to_string()));
+        assert!(bc1.gotchas.contains(&"Different gotcha".to_string()));
+    }
+
+    #[test]
+    fn test_business_context_merge_notes() {
+        let mut bc1 = BusinessContext {
+            purpose: None,
+            owner: None,
+            history: None,
+            gotchas: vec![],
+            notes: [("key1".to_string(), "value1".to_string())]
+                .into_iter()
+                .collect(),
+        };
+
+        let bc2 = BusinessContext {
+            purpose: None,
+            owner: None,
+            history: None,
+            gotchas: vec![],
+            notes: [
+                ("key1".to_string(), "new_value1".to_string()), // Should NOT overwrite
+                ("key2".to_string(), "value2".to_string()),     // Should be added
+            ]
+            .into_iter()
+            .collect(),
+        };
+
+        bc1.merge(&bc2);
+
+        // Original note should be preserved
+        assert_eq!(bc1.notes.get("key1"), Some(&"value1".to_string()));
+
+        // New note should be added
+        assert_eq!(bc1.notes.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_merge_business_context_across_graphs() {
+        // Create existing graph with annotations
+        let mut existing_graph = ForgeGraph::new();
+        let mut existing_node = create_test_service("ns", "test-svc", "Test Service");
+        existing_node.business_context = Some(BusinessContext {
+            purpose: Some("Original purpose".to_string()),
+            owner: Some("Original Team".to_string()),
+            history: None,
+            gotchas: vec!["Original gotcha".to_string()],
+            notes: Default::default(),
+        });
+        existing_graph.add_node(existing_node).unwrap();
+
+        // Create new graph from re-survey (no annotations)
+        let mut new_graph = ForgeGraph::new();
+        let new_node = create_test_service("ns", "test-svc", "Test Service");
+        new_graph.add_node(new_node).unwrap();
+
+        // Merge annotations from existing to new
+        merge_business_context(&mut new_graph, &existing_graph);
+
+        // Verify annotations were preserved
+        let node_id = NodeId::new(NodeType::Service, "ns", "test-svc").unwrap();
+        let merged_node = new_graph.get_node(&node_id).unwrap();
+
+        assert!(merged_node.business_context.is_some());
+        let bc = merged_node.business_context.as_ref().unwrap();
+        assert_eq!(bc.purpose, Some("Original purpose".to_string()));
+        assert_eq!(bc.owner, Some("Original Team".to_string()));
+        assert!(bc.gotchas.contains(&"Original gotcha".to_string()));
+    }
+
+    #[test]
+    fn test_merge_business_context_only_matching_nodes() {
+        // Create existing graph with annotations
+        let mut existing_graph = ForgeGraph::new();
+        let mut existing_node = create_test_service("ns", "svc-a", "Service A");
+        existing_node.business_context = Some(BusinessContext {
+            purpose: Some("Purpose A".to_string()),
+            owner: None,
+            history: None,
+            gotchas: vec![],
+            notes: Default::default(),
+        });
+        existing_graph.add_node(existing_node).unwrap();
+
+        // Create new graph with different node
+        let mut new_graph = ForgeGraph::new();
+        let new_node = create_test_service("ns", "svc-b", "Service B");
+        new_graph.add_node(new_node).unwrap();
+
+        // Merge - should not affect new_graph since nodes don't match
+        merge_business_context(&mut new_graph, &existing_graph);
+
+        let node_id = NodeId::new(NodeType::Service, "ns", "svc-b").unwrap();
+        let node = new_graph.get_node(&node_id).unwrap();
+
+        // Should have no business context (node IDs don't match)
+        assert!(node.business_context.is_none());
     }
 }

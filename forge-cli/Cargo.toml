@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 forge-graph = { path = "../forge-graph" }
 forge-survey = { path = "../forge-survey" }
+forge-llm = { path = "../forge-llm" }
 
 # CLI framework
 clap = { version = "4.4", features = ["derive"] }

@@ -61,10 +61,24 @@ pub use adapters::GeminiAdapter;
 
 // Re-export interview types
 pub use interview::{
+    AnnotationType,
+    // Interview flow (M6-T8)
+    AnnotationUpdate,
+    ContextGapScore,
+    GapAnalysisConfig,
+    GapReason,
+    InterviewError,
+    InterviewQuestion,
+    InterviewResult,
+    InterviewSession,
     // Gap analysis
-    analyze_gaps, analyze_gaps_with_config, ContextGapScore, GapAnalysisConfig, GapReason,
+    analyze_gaps,
+    analyze_gaps_with_config,
     // Question generation
-    generate_all_questions, generate_questions, AnnotationType, InterviewQuestion,
+    generate_all_questions,
+    generate_questions,
+    merge_business_context,
+    run_interactive_interview,
 };
 
 /// Configuration for creating an LLM provider.

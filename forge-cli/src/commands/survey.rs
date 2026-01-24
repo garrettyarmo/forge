@@ -32,6 +32,7 @@
 //! ```
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
+use forge_llm::{LLMConfig, create_and_verify_provider, run_interactive_interview};
 use forge_survey::{
     CloneMethod as SurveyCloneMethod, CouplingAnalyzer, GitHubClient, GraphBuilder, RepoCache,
     RepoInfo, detect_languages, parser::ParserRegistry,
@@ -143,9 +144,6 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     }
 
     // Warn about unimplemented features
-    if options.business_context {
-        println!("Warning: --business-context is not yet implemented (coming in M6)");
-    }
     if options.incremental {
         println!("Warning: --incremental is not yet implemented (coming in M7)");
     }
@@ -268,12 +266,59 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         }
     }
 
-    // Save graph
+    // Save graph (before interview so we don't lose survey progress)
     graph.save_to_file(&config.output.graph_path)?;
     println!(
         "Saved knowledge graph to: {}",
         config.output.graph_path.display()
     );
+
+    // Run business context interview if requested (M6-T10)
+    if options.business_context {
+        let llm_config = LLMConfig {
+            provider: config.llm.provider.clone(),
+            cli_path: config
+                .llm
+                .cli_path
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string()),
+        };
+
+        match create_and_verify_provider(&llm_config).await {
+            Ok(provider) => {
+                println!();
+                match run_interactive_interview(&mut graph, Some(provider)).await {
+                    Ok(result) => {
+                        if result.questions_answered > 0 {
+                            // Save graph again with interview annotations
+                            graph.save_to_file(&config.output.graph_path)?;
+                            println!(
+                                "Updated knowledge graph with {} annotations.",
+                                result.questions_answered
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        println!("Interview error: {}", e);
+                        println!("Survey results were saved before the interview.");
+                    }
+                }
+            }
+            Err(e) => {
+                println!();
+                println!(
+                    "Warning: LLM provider '{}' not available: {}",
+                    config.llm.provider, e
+                );
+                println!(
+                    "Install the CLI or change llm.provider in forge.yaml to enable interviews."
+                );
+                println!(
+                    "Survey results have been saved. Run with --business-context again after installing the CLI."
+                );
+            }
+        }
+    }
 
     Ok(())
 }

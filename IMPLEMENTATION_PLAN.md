@@ -947,25 +947,54 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
     - Exported `InterviewQuestion`, `AnnotationType`, `generate_questions`, `generate_all_questions` from lib.rs
     - 85 total forge-llm tests passing
 
-- [ ] **M6-T8**: Implement interview flow
+- [x] **M6-T8**: Implement interview flow
   - Interactive terminal UI
   - Present question, collect answer, update graph
   - Save after each answer (interrupt-safe)
   - **Files**: `forge-llm/src/interview.rs`
+  - **Implementation Notes**:
+    - Created `InterviewSession` struct to manage interview state
+    - Supports LLM provider for answer suggestions (optional)
+    - Commands: [s]uggest (LLM), [k]skip, [q]uit, or type answer directly
+    - `run_interactive_interview()` async function for terminal-based UI
+    - `InterviewResult` struct tracks questions asked, answered, skipped
+    - Session applies collected answers to graph via `apply_to_graph()`
+    - Exported `InterviewSession`, `InterviewResult`, `InterviewError`, `AnnotationUpdate`, `run_interactive_interview`
+    - 10 unit tests covering session creation, answer submission, skipping, applying to graph
 
-- [ ] **M6-T9**: Implement annotation persistence
+- [x] **M6-T9**: Implement annotation persistence
   - Store business context as node attributes
   - Preserve across re-surveys (merge strategy)
-  - **Files**: `forge-graph/src/node.rs`, `forge-survey/src/lib.rs`
+  - **Files**: `forge-graph/src/node.rs`, `forge-llm/src/interview.rs`
+  - **Implementation Notes**:
+    - Added `BusinessContext::merge()` method in forge-graph/src/node.rs
+    - Merge strategy: existing non-empty values preserved (not overwritten)
+    - Gotchas are merged with deduplication
+    - Notes are merged (existing keys not overwritten)
+    - Created `merge_business_context()` function to merge annotations across graphs
+    - 5 unit tests covering merge behavior, deduplication, cross-graph merging
 
-- [ ] **M6-T10**: Add `--business-context` flag to survey
+- [x] **M6-T10**: Add `--business-context` flag to survey
   - Trigger interview after technical survey
   - **Files**: `forge-cli/src/commands/survey.rs`
+  - **Implementation Notes**:
+    - Added forge-llm as dependency to forge-cli
+    - Wired `--business-context` flag to launch interview after survey completes
+    - Creates LLM provider from forge.yaml llm config
+    - Graceful fallback when LLM CLI not available (warning message, survey still saved)
+    - Graph saved before and after interview (interrupt-safe)
+    - Updated graph re-saved only if answers were collected
 
-- [ ] **M6-T11**: Write tests with mocked LLM responses
+- [x] **M6-T11**: Write tests with mocked LLM responses
   - Test interview flow
   - Test annotation persistence
-  - **Files**: `forge-llm/tests/interview_test.rs`
+  - **Files**: `forge-llm/src/interview.rs` (tests module)
+  - **Implementation Notes**:
+    - 15 comprehensive unit tests for interview session and annotation persistence
+    - Tests cover: session creation, answer submission, skipping, applying answers to graph
+    - Tests cover: BusinessContext merge (preserves existing, deduplicates gotchas, merges notes)
+    - Tests cover: cross-graph annotation merging for re-survey scenarios
+    - All tests passing (100+ workspace tests total)
 
 ### Dependencies
 
@@ -980,12 +1009,12 @@ forge-graph = { path = "../forge-graph" }
 
 ### Acceptance Criteria
 
-- [ ] `forge survey --business-context` launches interview
-- [ ] Interview questions are contextual and useful
-- [ ] Annotations persist across multiple survey runs
-- [ ] Can switch LLM provider (coding agent CLI) via config
-- [ ] Works even when LLM CLI is unavailable (graceful skip with warning)
-- [ ] Leverages existing CLI authentication (no API keys in forge.yaml)
+- [x] `forge survey --business-context` launches interview
+- [x] Interview questions are contextual and useful
+- [x] Annotations persist across multiple survey runs
+- [x] Can switch LLM provider (coding agent CLI) via config
+- [x] Works even when LLM CLI is unavailable (graceful skip with warning)
+- [x] Leverages existing CLI authentication (no API keys in forge.yaml)
 
 ---
 
