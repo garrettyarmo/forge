@@ -318,15 +318,23 @@ impl BudgetedSerializer {
 
         match detail {
             DetailLevel::Full => {
-                writeln!(output, "### {} ({}% relevance)\n", scored.node.display_name, relevance_pct).unwrap();
+                writeln!(
+                    output,
+                    "### {} ({}% relevance)\n",
+                    scored.node.display_name, relevance_pct
+                )
+                .unwrap();
 
                 // Type info
-                if let Some(lang) = scored.node.attributes.get("language").and_then(|v| {
-                    match v {
+                if let Some(lang) = scored
+                    .node
+                    .attributes
+                    .get("language")
+                    .and_then(|v| match v {
                         forge_graph::AttributeValue::String(s) => Some(s.as_str()),
                         _ => None,
-                    }
-                }) {
+                    })
+                {
                     writeln!(output, "**Language**: {}", lang).unwrap();
                 }
 
@@ -379,12 +387,15 @@ impl BudgetedSerializer {
                 .unwrap();
 
                 // Just type info
-                if let Some(lang) = scored.node.attributes.get("language").and_then(|v| {
-                    match v {
+                if let Some(lang) = scored
+                    .node
+                    .attributes
+                    .get("language")
+                    .and_then(|v| match v {
                         forge_graph::AttributeValue::String(s) => Some(s.as_str()),
                         _ => None,
-                    }
-                }) {
+                    })
+                {
                     writeln!(output, "**Language**: {}\n", lang).unwrap();
                 }
             }
@@ -399,11 +410,7 @@ impl BudgetedSerializer {
         }
     }
 
-    fn serialize_json_budgeted(
-        &self,
-        nodes: &[&ScoredNode<'_>],
-        edges: &[&&Edge],
-    ) -> String {
+    fn serialize_json_budgeted(&self, nodes: &[&ScoredNode<'_>], edges: &[&&Edge]) -> String {
         use serde_json::json;
 
         let nodes_json: Vec<_> = nodes
@@ -442,11 +449,7 @@ impl BudgetedSerializer {
         serde_json::to_string_pretty(&output).unwrap_or_default()
     }
 
-    fn serialize_mermaid_budgeted(
-        &self,
-        nodes: &[&ScoredNode<'_>],
-        edges: &[&&Edge],
-    ) -> String {
+    fn serialize_mermaid_budgeted(&self, nodes: &[&ScoredNode<'_>], edges: &[&&Edge]) -> String {
         let mut output = String::new();
 
         writeln!(output, "flowchart LR").unwrap();
@@ -651,8 +654,12 @@ mod tests {
     #[test]
     fn test_budgeted_serializer_markdown() {
         let mut graph = ForgeGraph::new();
-        graph.add_node(create_test_service("ns", "api", "API Service")).unwrap();
-        graph.add_node(create_test_database("ns", "db", "Database")).unwrap();
+        graph
+            .add_node(create_test_service("ns", "api", "API Service"))
+            .unwrap();
+        graph
+            .add_node(create_test_database("ns", "db", "Database"))
+            .unwrap();
 
         let config = SubgraphConfig {
             seed_nodes: vec![NodeId::new(NodeType::Service, "ns", "api").unwrap()],
@@ -674,7 +681,9 @@ mod tests {
     #[test]
     fn test_budgeted_serializer_json() {
         let mut graph = ForgeGraph::new();
-        graph.add_node(create_test_service("ns", "api", "API Service")).unwrap();
+        graph
+            .add_node(create_test_service("ns", "api", "API Service"))
+            .unwrap();
 
         let config = SubgraphConfig {
             seed_nodes: vec![NodeId::new(NodeType::Service, "ns", "api").unwrap()],
@@ -699,7 +708,9 @@ mod tests {
     #[test]
     fn test_budgeted_serializer_mermaid() {
         let mut graph = ForgeGraph::new();
-        graph.add_node(create_test_service("ns", "api", "API Service")).unwrap();
+        graph
+            .add_node(create_test_service("ns", "api", "API Service"))
+            .unwrap();
 
         let config = SubgraphConfig {
             seed_nodes: vec![NodeId::new(NodeType::Service, "ns", "api").unwrap()],
@@ -763,7 +774,9 @@ mod tests {
     #[test]
     fn test_fits_within_budget() {
         let mut graph = ForgeGraph::new();
-        graph.add_node(create_test_service("ns", "api", "API")).unwrap();
+        graph
+            .add_node(create_test_service("ns", "api", "API"))
+            .unwrap();
 
         let config = SubgraphConfig {
             seed_nodes: vec![NodeId::new(NodeType::Service, "ns", "api").unwrap()],
@@ -787,8 +800,12 @@ mod tests {
     #[test]
     fn test_estimate_tokens() {
         let mut graph = ForgeGraph::new();
-        graph.add_node(create_test_service("ns", "api", "API Service")).unwrap();
-        graph.add_node(create_test_database("ns", "db", "Database")).unwrap();
+        graph
+            .add_node(create_test_service("ns", "api", "API Service"))
+            .unwrap();
+        graph
+            .add_node(create_test_database("ns", "db", "Database"))
+            .unwrap();
 
         let config = SubgraphConfig {
             seed_nodes: vec![NodeId::new(NodeType::Service, "ns", "api").unwrap()],

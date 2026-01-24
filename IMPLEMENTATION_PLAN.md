@@ -836,12 +836,35 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
     - Added `MockProvider` for testing with 5 unit tests passing
     - Dependencies: async-trait, thiserror, tokio (process, io-util, time), serde
 
-- [ ] **M6-T2**: Implement Claude CLI adapter
+- [x] **M6-T2**: Implement Claude CLI adapter
   - Shell out to `claude` CLI (Claude Code's CLI tool)
   - Pipe prompt via stdin, read response from stdout
   - Handle streaming output
   - Leverage user's existing Claude authentication
-  - **Files**: `forge-llm/src/adapters/claude.rs`
+  - **Files**: `forge-llm/src/adapters/claude.rs`, `forge-llm/src/adapters/base.rs`, `forge-llm/src/adapters/mod.rs`
+  - **Implementation Notes**:
+    - Created `CliAdapter` base struct in `forge-llm/src/adapters/base.rs` with:
+      - Builder pattern for configuration (command, timeout, extra args)
+      - `check_available()` method using `which` to verify CLI exists
+      - `execute()` method for stdin/stdout subprocess communication with timeout
+      - Cross-platform support (Unix `which`, Windows `where`)
+    - Created `ClaudeAdapter` in `forge-llm/src/adapters/claude.rs`:
+      - Wraps `CliAdapter` with Claude-specific configuration
+      - Uses `--print` flag for non-interactive mode
+      - Default 180-second timeout
+      - `format_claude_prompt()` for system/user prompt formatting
+      - `format_history()` for multi-turn conversation support
+      - Implements full `LLMProvider` trait including `prompt_with_history()`
+    - Created adapters module (`forge-llm/src/adapters/mod.rs`) with re-exports
+    - Updated `forge-llm/src/lib.rs` with:
+      - `LLMConfig` struct for provider configuration
+      - `create_provider()` factory function
+      - `create_and_verify_provider()` async factory with availability check
+    - 31 unit tests passing covering:
+      - Base adapter building and execution
+      - Claude adapter prompt formatting
+      - Provider factory (create, verify, unknown provider handling)
+      - Error handling (CLI not found, process failed)
 
 - [ ] **M6-T3**: Implement Gemini CLI adapter
   - Shell out to Gemini CLI tool
@@ -853,11 +876,17 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
   - Same stdin/stdout pattern as Claude adapter
   - **Files**: `forge-llm/src/adapters/codex.rs`
 
-- [ ] **M6-T5**: Implement provider selection from config
+- [x] **M6-T5**: Implement provider selection from config
   - Read `llm.provider` from forge.yaml
   - Instantiate appropriate CLI adapter
   - Validate CLI is installed and accessible
   - **Files**: `forge-llm/src/lib.rs`
+  - **Implementation Notes**:
+    - Implemented `LLMConfig` struct with `provider` and `cli_path` fields
+    - Implemented `create_provider()` factory function for synchronous provider creation
+    - Implemented `create_and_verify_provider()` async factory that checks CLI availability
+    - Currently supports "claude" provider (gemini/codex adapters pending M6-T3/M6-T4)
+    - 7 unit tests covering factory functionality
 
 - [ ] **M6-T6**: Implement gap analysis
   - Identify nodes lacking business context
