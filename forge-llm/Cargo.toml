@@ -7,3 +7,10 @@ description = "LLM CLI adapter layer for Forge"
 
 [dependencies]
 forge-graph = { path = "../forge-graph" }
+async-trait = "0.1"
+thiserror = "2.0"
+tokio = { version = "1.0", features = ["process", "io-util", "time"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }

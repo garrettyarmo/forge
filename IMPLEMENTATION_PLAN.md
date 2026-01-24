@@ -824,11 +824,17 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
 
 ### Tasks
 
-- [ ] **M6-T1**: Define LLM provider trait
+- [x] **M6-T1**: Define LLM provider trait
   - `trait LLMProvider { async fn prompt(&self, system: &str, user: &str) -> Result<String>; }`
   - **Subprocess-based execution (NOT direct API calls)**
   - Manage stdin/stdout piping to coding agent CLIs
   - **Files**: `forge-llm/src/provider.rs`
+  - **Implementation Notes**:
+    - Created `LLMProvider` async trait with `name()`, `is_available()`, `prompt()`, and `prompt_with_history()` methods
+    - Created `LLMError` enum with variants: ProcessFailed, NonZeroExit, InvalidOutput, CliNotFound, Timeout, NotConfigured, Io
+    - Created `Message` struct with `Role` enum for conversation history support
+    - Added `MockProvider` for testing with 5 unit tests passing
+    - Dependencies: async-trait, thiserror, tokio (process, io-util, time), serde
 
 - [ ] **M6-T2**: Implement Claude CLI adapter
   - Shell out to `claude` CLI (Claude Code's CLI tool)
