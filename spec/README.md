@@ -45,12 +45,25 @@ Design documentation for Forge, a reusable platform for surveying and mapping so
   - Implicit coupling risk summary
   - Subgraph serialization with relevance indicators
   - Status: Complete (M5-T2)
+- **JsonSerializer**: Structured JSON output for programmatic access
+  - Schema-documented output with $schema, version, generated_at fields
+  - Query info for subgraph extractions (type, seeds, max_depth)
+  - Summary statistics (total_nodes, total_edges, by_type)
+  - Business context serialization
+  - Status: Complete (M5-T3)
+- **MermaidSerializer**: Visual diagram syntax for documentation
+  - Flowchart diagram with configurable direction (LR, RL, TB, BT)
+  - Node grouping into subgraphs (Services, Databases, Queues, Resources, APIs)
+  - Shape coding: Services (rectangle), Databases (cylinder), Queues (asymmetric), CloudResources (hexagon)
+  - Edge styling: solid arrows for normal edges, dotted for implicit couplings
+  - CSS class styling with color-coding per node type
+  - Status: Complete (M5-T4)
 - **forge map command**: Serialize knowledge graphs to various formats
-  - `--format` flag (markdown implemented, json/mermaid planned)
+  - `--format` flag (markdown, json, mermaid)
   - `--service` flag for filtering to specific services
   - `--output` flag for file output (default: stdout)
   - Relevance-scored subgraph extraction
-  - Status: Markdown format complete (M5-T7)
+  - Status: All formats complete (M5-T7)
 
 ## Survey Phase Implementation
 
@@ -107,15 +120,15 @@ _Milestone 6: Business context interview using CLI adapters for Claude, Gemini, 
 - 🔄 **Milestone 5 (Serialization)**: In Progress
   - ✅ M5-T1: Subgraph extraction with relevance scoring
   - ✅ M5-T2: Markdown serializer
-  - ✅ M5-T7: forge map command (markdown format)
-  - ⏳ M5-T3: JSON serializer (planned)
-  - ⏳ M5-T4: Mermaid serializer (planned)
+  - ✅ M5-T3: JSON serializer
+  - ✅ M5-T4: Mermaid serializer
+  - ✅ M5-T7: forge map command (all formats)
   - ⏳ M5-T5: Token counting (planned)
   - ⏳ M5-T6: Token-budgeted output (planned)
-  - ⏳ M5-T8: Serializer tests (partial)
+  - ⏳ M5-T8: Serializer tests (partial - tests exist for all serializers)
 
 ### Next Up
-- Milestone 5: JSON serializer, Mermaid serializer, token budgeting
+- Milestone 5: Token counting and budgeting
 - Milestone 6: LLM-assisted business context interview
 - Milestone 7: Polish (incremental survey, CLI UX, documentation)
 

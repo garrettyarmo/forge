@@ -649,7 +649,7 @@ pub trait Parser: Send + Sync {
 - [x] Services sharing SQS queues get IMPLICITLY_COUPLED edge
 - [x] Ownership is correctly inferred from Terraform definitions
 - [x] Coupling reasons are recorded in edge metadata
-- [ ] Graph visualizes coupling relationships (M5 task - serialization)
+- [x] Graph visualizes coupling relationships (via Mermaid serializer in M5-T4)
 - [x] Coupling analysis integrated into survey command pipeline
 
 ---
@@ -722,22 +722,30 @@ pub trait Parser: Send + Sync {
   - **Implementation Notes**:
     - Full implementation of map command in forge-cli
     - Loads graph from configured path or --input override
-    - Supports --format flag (markdown and json working, mermaid pending M5-T4)
+    - Supports --format flag (markdown, json, and mermaid all working)
     - Service filtering via --service flag (comma-separated names)
     - Subgraph extraction using relevance-scored algorithm from M5-T1
     - Output to file via --output or stdout by default
-    - 11 comprehensive unit tests (including JSON format tests)
+    - 14 comprehensive unit tests (including JSON and Mermaid format tests)
     - All tests passing
 
-- [ ] **M5-T4**: Implement Mermaid serializer
-  - Structured format for tool-based LLM queries
-  - Schema-documented output
-  - **Files**: `forge-cli/src/serializers/json.rs`
-
-- [ ] **M5-T4**: Implement Mermaid serializer
+- [x] **M5-T4**: Implement Mermaid serializer
   - Flowchart diagram syntax
   - Color-coding by node type
   - **Files**: `forge-cli/src/serializers/mermaid.rs`
+  - **Implementation Notes**:
+    - Created `MermaidSerializer` struct in forge-cli/src/serializers/mermaid.rs
+    - Produces Mermaid flowchart syntax with configurable direction (LR, RL, TB, BT)
+    - Groups nodes by type into subgraphs (Services, Databases, Queues, Resources, APIs)
+    - Node shapes: Services (rectangle), Databases (cylinder), Queues (asymmetric), CloudResources (hexagon), APIs (stadium)
+    - Edge styles: solid arrows for normal edges, dotted arrows for implicit couplings
+    - CSS class styling with color-coding per node type
+    - Configurable: direction, include_attributes, max_nodes, include_styles
+    - Label building with attribute support (language/framework for services, db_type for databases, queue_type for queues)
+    - 18 comprehensive unit tests covering all serialization scenarios
+    - Integrated with `forge map --format mermaid` command
+    - 4 new tests added to map command for Mermaid format
+    - All tests passing
 
 - [ ] **M5-T5**: Implement token counting
   - Use tiktoken-rs for accurate OpenAI tokenization
@@ -766,7 +774,7 @@ tiktoken-rs = "0.5"
 
 - [x] `forge map --format markdown` produces readable service docs
 - [x] `forge map --format json` produces structured data
-- [ ] `forge map --format mermaid` produces valid diagram syntax
+- [x] `forge map --format mermaid` produces valid diagram syntax
 - [ ] `forge map --budget 4000` stays under token limit
 - [x] Subgraph extraction correctly filters by service
 - [x] `forge map --service` filters output to specific services

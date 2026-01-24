@@ -3,10 +3,10 @@
 //! Serializes the knowledge graph to various output formats:
 //! - Markdown: Human-readable documentation optimized for LLM context
 //! - JSON: Structured format for programmatic access
-//! - Mermaid: Visual diagram syntax for documentation (planned)
+//! - Mermaid: Visual diagram syntax for documentation
 
 use crate::config::ForgeConfig;
-use crate::serializers::{JsonSerializer, MarkdownSerializer, QueryInfo};
+use crate::serializers::{JsonSerializer, MarkdownSerializer, MermaidSerializer, QueryInfo};
 use forge_graph::{ForgeGraph, NodeId, NodeType, SubgraphConfig};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -155,10 +155,8 @@ fn serialize_graph(
             Ok(serializer.serialize_graph(graph))
         }
         OutputFormat::Mermaid => {
-            // Mermaid serializer not yet implemented
-            Err(MapError::UnknownFormat(
-                "mermaid (not yet implemented - coming in M5-T4)".to_string(),
-            ))
+            let serializer = MermaidSerializer::new();
+            Ok(serializer.serialize_graph(graph))
         }
     }
 }
@@ -194,9 +192,10 @@ fn serialize_subgraph(
             };
             Ok(serializer.serialize_subgraph(&subgraph, Some(query_info)))
         }
-        OutputFormat::Mermaid => Err(MapError::UnknownFormat(
-            "mermaid (not yet implemented - coming in M5-T4)".to_string(),
-        )),
+        OutputFormat::Mermaid => {
+            let serializer = MermaidSerializer::new();
+            Ok(serializer.serialize_subgraph(&subgraph))
+        }
     }
 }
 
@@ -509,5 +508,101 @@ mod tests {
         assert!(!nodes.is_empty());
         let first_node = &nodes[0];
         assert!(first_node.get("relevance").is_some());
+    }
+
+    #[test]
+    fn test_serialize_graph_mermaid() {
+        let graph = create_test_graph();
+
+        let output = serialize_graph(&graph, OutputFormat::Mermaid, None).unwrap();
+
+        // Should start with flowchart declaration
+        assert!(output.starts_with("flowchart LR"));
+
+        // Should contain subgraphs
+        assert!(output.contains("subgraph Services"));
+        assert!(output.contains("subgraph Databases"));
+
+        // Should contain nodes
+        assert!(output.contains("service_ns_user_api"));
+        assert!(output.contains("service_ns_order_api"));
+        assert!(output.contains("database_ns_users_table"));
+
+        // Should contain edges
+        assert!(output.contains("-->|READS|"));
+        assert!(output.contains("-->|CALLS|"));
+    }
+
+    #[test]
+    fn test_serialize_subgraph_mermaid() {
+        let graph = create_test_graph();
+        let seed_ids = vec![NodeId::new(NodeType::Service, "ns", "user-api").unwrap()];
+
+        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Mermaid, None).unwrap();
+
+        // Should start with flowchart declaration
+        assert!(output.starts_with("flowchart LR"));
+
+        // Should contain nodes in subgraph
+        assert!(output.contains("service_ns_user_api"));
+    }
+
+    #[test]
+    fn test_run_map_with_mermaid_format() {
+        let graph = create_test_graph();
+        let temp_dir = tempdir().unwrap();
+
+        // Save graph
+        let graph_path = temp_dir.path().join("graph.json");
+        graph.save_to_file(&graph_path).unwrap();
+
+        // Output path
+        let output_path = temp_dir.path().join("output.mmd");
+
+        let options = MapOptions {
+            config: None,
+            input: Some(graph_path.to_string_lossy().to_string()),
+            format: "mermaid".to_string(),
+            service: None,
+            budget: None,
+            output: Some(output_path.to_string_lossy().to_string()),
+        };
+
+        run_map(options).unwrap();
+
+        // Verify output file exists and contains Mermaid syntax
+        assert!(output_path.exists());
+
+        let content = std::fs::read_to_string(&output_path).unwrap();
+        assert!(content.starts_with("flowchart LR"));
+        assert!(content.contains("subgraph Services"));
+    }
+
+    #[test]
+    fn test_run_map_mermaid_with_service_filter() {
+        let graph = create_test_graph();
+        let temp_dir = tempdir().unwrap();
+
+        // Save graph
+        let graph_path = temp_dir.path().join("graph.json");
+        graph.save_to_file(&graph_path).unwrap();
+
+        // Output path
+        let output_path = temp_dir.path().join("output.mmd");
+
+        let options = MapOptions {
+            config: None,
+            input: Some(graph_path.to_string_lossy().to_string()),
+            format: "mmd".to_string(), // Test mmd alias
+            service: Some("User API".to_string()),
+            budget: None,
+            output: Some(output_path.to_string_lossy().to_string()),
+        };
+
+        run_map(options).unwrap();
+
+        let content = std::fs::read_to_string(&output_path).unwrap();
+        assert!(content.starts_with("flowchart LR"));
+        assert!(content.contains("service_ns_user_api"));
     }
 }

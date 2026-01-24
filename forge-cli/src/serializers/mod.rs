@@ -4,7 +4,7 @@
 //!
 //! - **Markdown**: Human-readable documentation optimized for LLM context consumption
 //! - **JSON**: Structured format for programmatic access
-//! - **Mermaid**: Visual diagram syntax for documentation (planned)
+//! - **Mermaid**: Visual diagram syntax for documentation
 //!
 //! ## Design Philosophy
 //!
@@ -15,6 +15,8 @@
 
 pub mod json;
 pub mod markdown;
+pub mod mermaid;
 
 pub use json::{JsonOutput, JsonSerializer, QueryInfo};
 pub use markdown::{DetailLevel, MarkdownSerializer};
+pub use mermaid::{Direction, MermaidSerializer};
