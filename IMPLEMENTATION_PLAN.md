@@ -925,10 +925,27 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** (e.g., `clau
     - 17 comprehensive unit tests covering all gap detection scenarios
     - 74 total forge-llm tests passing
 
-- [ ] **M6-T7**: Implement question generation
+- [x] **M6-T7**: Implement question generation
   - Template-based questions for different node types
   - E.g., "What business function does {service} serve?"
   - **Files**: `forge-llm/src/interview.rs`
+  - **Implementation Notes**:
+    - Created `InterviewQuestion` struct with node_id, question, annotation_type, priority (1-10), context
+    - Created `AnnotationType` enum: Purpose, Owner, History, Gotcha, Note
+    - Implemented `generate_questions()` function that generates questions from gap analysis results
+    - Implemented `generate_all_questions()` convenience function to analyze entire graph
+    - Implemented helper functions for each question type:
+      - `generate_purpose_question()` - asks about business purpose, includes dependency context
+      - `generate_owner_question()` - asks about ownership/responsibility
+      - `generate_centrality_question()` - asks why a central service has many connections
+      - `generate_coupling_question()` - asks about implicit coupling coordination
+      - `generate_shared_resource_question()` - asks about resource ownership
+      - `generate_gotcha_question()` - asks about known issues and operational concerns
+    - Questions sorted by priority (highest first)
+    - Priority levels: Purpose (9), Centrality (8), Shared Resource (8), Owner (7), Coupling (7), Gotcha (5)
+    - 12 comprehensive unit tests covering all question generation scenarios
+    - Exported `InterviewQuestion`, `AnnotationType`, `generate_questions`, `generate_all_questions` from lib.rs
+    - 85 total forge-llm tests passing
 
 - [ ] **M6-T8**: Implement interview flow
   - Interactive terminal UI

@@ -60,7 +60,12 @@ pub use adapters::CodexAdapter;
 pub use adapters::GeminiAdapter;
 
 // Re-export interview types
-pub use interview::{analyze_gaps, analyze_gaps_with_config, ContextGapScore, GapAnalysisConfig, GapReason};
+pub use interview::{
+    // Gap analysis
+    analyze_gaps, analyze_gaps_with_config, ContextGapScore, GapAnalysisConfig, GapReason,
+    // Question generation
+    generate_all_questions, generate_questions, AnnotationType, InterviewQuestion,
+};
 
 /// Configuration for creating an LLM provider.
 #[derive(Debug, Clone, Default)]
