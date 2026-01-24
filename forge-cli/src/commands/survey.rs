@@ -32,10 +32,11 @@
 //! ```
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
+use forge_graph::ForgeGraph;
 use forge_llm::{LLMConfig, create_and_verify_provider, run_interactive_interview};
 use forge_survey::{
-    CloneMethod as SurveyCloneMethod, CouplingAnalyzer, GitHubClient, GraphBuilder, RepoCache,
-    RepoInfo, detect_languages, parser::ParserRegistry,
+    ChangeDetector, CloneMethod as SurveyCloneMethod, CouplingAnalyzer, GitHubClient, GraphBuilder,
+    RepoCache, RepoInfo, SurveyState, detect_languages, get_current_commit, parser::ParserRegistry,
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -76,6 +77,14 @@ pub enum SurveyError {
     /// GitHub token not available.
     #[error("GitHub token not found. Set the {0} environment variable")]
     NoGitHubToken(String),
+
+    /// Incremental survey state error.
+    #[error("Survey state error: {0}")]
+    StateError(#[from] forge_survey::StateError),
+
+    /// Change detection error.
+    #[error("Change detection error: {0}")]
+    ChangeError(#[from] forge_survey::ChangeError),
 }
 
 /// Options for the `forge survey` command.
@@ -143,11 +152,6 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         println!("Cache path: {}", config.output.cache_path.display());
     }
 
-    // Warn about unimplemented features
-    if options.incremental {
-        println!("Warning: --incremental is not yet implemented (coming in M7)");
-    }
-
     // Collect repositories to survey
     let repos = collect_repos(&config, &options).await?;
 
@@ -157,8 +161,64 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
 
     println!("Found {} repositories to survey", repos.len());
 
+    // Calculate state path (same directory as graph)
+    let state_path = config
+        .output
+        .graph_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("survey-state.json");
+
+    // Load existing state for incremental mode
+    let survey_state = if options.incremental && state_path.exists() {
+        match SurveyState::load(&state_path) {
+            Ok(state) => {
+                if options.verbose {
+                    println!(
+                        "Loaded survey state: {} repos surveyed previously",
+                        state.repo_count()
+                    );
+                }
+                Some(state)
+            }
+            Err(e) => {
+                println!("Warning: Could not load survey state: {}", e);
+                println!("Falling back to full survey.");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Initialize graph builder
-    let mut builder = GraphBuilder::new();
+    // For incremental mode, try to load existing graph
+    let mut builder = if options.incremental && config.output.graph_path.exists() {
+        match ForgeGraph::load_from_file(&config.output.graph_path) {
+            Ok(graph) => {
+                if options.verbose {
+                    println!(
+                        "Loaded existing graph: {} nodes, {} edges",
+                        graph.node_count(),
+                        graph.edge_count()
+                    );
+                }
+                GraphBuilder::from_graph(graph)
+            }
+            Err(e) => {
+                println!("Warning: Could not load existing graph: {}", e);
+                println!("Starting fresh survey.");
+                GraphBuilder::new()
+            }
+        }
+    } else {
+        GraphBuilder::new()
+    };
+
+    // Create change detector for incremental mode
+    let change_detector = survey_state
+        .as_ref()
+        .map(|state| ChangeDetector::new(state.clone()));
 
     // Create parser registry once
     let registry = ParserRegistry::new().map_err(SurveyError::ParserError)?;
@@ -172,30 +232,124 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     // Survey each repository
     let mut success_count = 0;
     let mut error_count = 0;
+    let mut skipped_count = 0;
+    let mut repos_surveyed: Vec<(String, String, usize, Vec<String>, bool)> = Vec::new();
 
     for (i, repo) in repos.iter().enumerate() {
-        println!("[{}/{}] Surveying: {}", i + 1, repos.len(), repo.full_name);
+        // For incremental mode, check if we need to survey this repo
+        if let Some(ref detector) = change_detector {
+            // Get the local path first to check changes
+            let local_path = if repo.owner == "local" {
+                PathBuf::from(&repo.full_name)
+            } else {
+                cache.repo_path(repo)
+            };
+
+            // Only check changes if the repo exists locally
+            if local_path.exists() {
+                match detector.detect_changes(&repo.full_name, &local_path).await {
+                    Ok(changes) if !changes.needs_full_survey && !changes.has_changes() => {
+                        skipped_count += 1;
+                        if options.verbose {
+                            println!(
+                                "[{}/{}] Skipping {} (no changes)",
+                                i + 1,
+                                repos.len(),
+                                repo.full_name
+                            );
+                        }
+                        // Still record the state (same SHA, previous discovery count)
+                        if let Some(prev_state) = detector.state().get_repo(&repo.full_name) {
+                            repos_surveyed.push((
+                                repo.full_name.clone(),
+                                changes.current_sha,
+                                prev_state.discovery_count,
+                                prev_state.detected_languages.clone(),
+                                true,
+                            ));
+                        }
+                        continue;
+                    }
+                    Ok(changes) => {
+                        if changes.needs_full_survey {
+                            if options.verbose {
+                                println!(
+                                    "[{}/{}] Full survey needed for {}: {}",
+                                    i + 1,
+                                    repos.len(),
+                                    repo.full_name,
+                                    changes
+                                        .full_survey_reason
+                                        .as_deref()
+                                        .unwrap_or("unknown reason")
+                                );
+                            }
+                        } else if options.verbose {
+                            println!(
+                                "[{}/{}] Surveying {} ({} added, {} modified, {} deleted)",
+                                i + 1,
+                                repos.len(),
+                                repo.full_name,
+                                changes.added.len(),
+                                changes.modified.len(),
+                                changes.deleted.len()
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        if options.verbose {
+                            println!(
+                                "  Warning: Could not detect changes for {}: {}",
+                                repo.full_name, e
+                            );
+                        }
+                        // Fall through to full survey
+                    }
+                }
+            }
+        }
+
+        if !options.incremental || change_detector.is_none() {
+            println!("[{}/{}] Surveying: {}", i + 1, repos.len(), repo.full_name);
+        }
 
         match survey_repository(repo, &cache, &mut builder, &config, &options, &registry).await {
-            Ok(()) => {
+            Ok(survey_info) => {
                 success_count += 1;
                 if options.verbose {
                     println!("  ✓ Successfully surveyed {}", repo.full_name);
                 }
+                repos_surveyed.push(survey_info);
             }
             Err(e) => {
                 error_count += 1;
                 println!("  ✗ Error surveying {}: {}", repo.full_name, e);
+                // Record failed survey
+                let local_path = if repo.owner == "local" {
+                    PathBuf::from(&repo.full_name)
+                } else {
+                    cache.repo_path(repo)
+                };
+                if let Ok(sha) = get_current_commit(&local_path).await {
+                    repos_surveyed.push((repo.full_name.clone(), sha, 0, vec![], false));
+                }
                 // Continue with other repos - don't crash entire survey
             }
         }
     }
 
     println!();
-    println!(
-        "Survey complete: {} succeeded, {} failed",
-        success_count, error_count
-    );
+    if options.incremental && skipped_count > 0 {
+        println!(
+            "Survey complete: {} succeeded, {} skipped (no changes), {} failed",
+            success_count, skipped_count, error_count
+        );
+    } else {
+        println!(
+            "Survey complete: {} succeeded, {} failed",
+            success_count, error_count
+        );
+    }
 
     // Build graph
     let mut graph = builder.build();
@@ -272,6 +426,29 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         "Saved knowledge graph to: {}",
         config.output.graph_path.display()
     );
+
+    // Save incremental survey state
+    if options.incremental || survey_state.is_some() {
+        let mut new_state = survey_state.unwrap_or_else(SurveyState::new);
+        if !options.incremental {
+            // First incremental-enabled survey - mark as full survey
+            new_state.mark_full_survey_start();
+        }
+
+        // Update state with all surveyed repos
+        for (repo_name, sha, discovery_count, languages, success) in repos_surveyed {
+            new_state.mark_surveyed(&repo_name, &sha, discovery_count, languages, success);
+        }
+
+        new_state.save(&state_path)?;
+        if options.verbose {
+            println!(
+                "Saved survey state to: {} ({} repos tracked)",
+                state_path.display(),
+                new_state.repo_count()
+            );
+        }
+    }
 
     // Run business context interview if requested (M6-T10)
     if options.business_context {
@@ -438,7 +615,12 @@ async fn collect_repos(
     Ok(repos)
 }
 
+/// Survey info returned from survey_repository.
+/// (repo_name, commit_sha, discovery_count, detected_languages, success)
+type SurveyInfo = (String, String, usize, Vec<String>, bool);
+
 /// Survey a single repository.
+/// Returns info for incremental state tracking: (repo_name, sha, discovery_count, languages, success)
 async fn survey_repository(
     repo: &RepoInfo,
     cache: &RepoCache,
@@ -446,7 +628,7 @@ async fn survey_repository(
     config: &ForgeConfig,
     options: &SurveyOptions,
     registry: &ParserRegistry,
-) -> Result<(), SurveyError> {
+) -> Result<SurveyInfo, SurveyError> {
     // Determine local path
     let local_path = if repo.owner == "local" {
         // Local repository - use the full_name as the path
@@ -464,18 +646,17 @@ async fn survey_repository(
         println!("  Local path: {}", local_path.display());
     }
 
-    // Get commit SHA for tracking
-    let commit_sha = if repo.owner != "local" {
-        cache.get_commit_sha(&local_path).await
-    } else {
-        None
-    };
+    // Get commit SHA for tracking (use get_current_commit for both local and remote)
+    let commit_sha = get_current_commit(&local_path)
+        .await
+        .unwrap_or_else(|_| "unknown".to_string());
 
     // Set repository context in builder
-    builder.set_repo_context(&repo.full_name, commit_sha.as_deref());
+    builder.set_repo_context(&repo.full_name, Some(&commit_sha));
 
     // Detect languages in the repository
     let detected = detect_languages(&local_path);
+    let detected_languages: Vec<String> = detected.iter().map(|l| l.name.clone()).collect();
 
     if options.verbose {
         if detected.is_empty() {
@@ -503,7 +684,13 @@ async fn survey_repository(
                 println!("  No parsers available for detected languages");
             }
         }
-        return Ok(());
+        return Ok((
+            repo.full_name.clone(),
+            commit_sha,
+            0,
+            detected_languages,
+            true,
+        ));
     }
 
     if options.verbose {
@@ -579,6 +766,7 @@ async fn survey_repository(
     let service_id = service_id.expect("service_id should be set at this point");
 
     // Run each parser and collect discoveries
+    let mut total_discoveries = 0usize;
     for parser in &parsers {
         if options.verbose {
             let extensions = parser.supported_extensions();
@@ -587,9 +775,11 @@ async fn survey_repository(
 
         match parser.parse_repo(&local_path) {
             Ok(discoveries) => {
+                let count = discoveries.len();
                 if options.verbose {
-                    println!("    Found {} code discoveries", discoveries.len());
+                    println!("    Found {} code discoveries", count);
                 }
+                total_discoveries += count;
                 builder.process_discoveries(discoveries, &service_id);
             }
             Err(e) => {
@@ -603,7 +793,13 @@ async fn survey_repository(
         }
     }
 
-    Ok(())
+    Ok((
+        repo.full_name.clone(),
+        commit_sha,
+        total_discoveries,
+        detected_languages,
+        true,
+    ))
 }
 
 /// Parse a "owner/repo" string into owner and repo parts.

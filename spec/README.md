@@ -73,6 +73,16 @@ The survey phase is **purely deterministic** using tree-sitter AST parsing only 
 - **Offline capability**: Works without network for local repos
 - **Predictable costs**: Zero token usage during survey
 
+### Incremental Survey (forge-survey/src/incremental.rs)
+- **SurveyState**: Persistent state tracking repos, commit SHAs, discovery counts
+- **RepoState**: Per-repo state (commit SHA, last surveyed, languages, success flag)
+- **ChangeDetector**: Git-based change detection using `git diff`
+- **ChangeResult**: Reports added/modified/deleted files
+- State saved to `.forge/survey-state.json`
+- Skips unchanged repos (same commit SHA)
+- Falls back to full survey on force push or shallow clone issues
+- Status: Complete (M7-T1)
+
 ## Observability Suite
 
 _To be implemented in future milestones_
@@ -192,6 +202,17 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
   - ✅ M6-T10: --business-context flag (graceful degradation, interrupt-safe)
   - ✅ M6-T11: Interview tests (15 tests for session and persistence)
 
-### Next Up
+### In Progress
 - ⏳ **Milestone 7 (Polish)**: Incremental survey, CLI UX, documentation
+  - ✅ M7-T1: Incremental survey (SurveyState, ChangeDetector, git-based change detection)
+  - ⏳ M7-T2: Staleness indicators
+  - ⏳ M7-T3: Progress bars (indicatif)
+  - ⏳ M7-T4: --verbose/--quiet flags
+  - ⏳ M7-T5: README.md
+  - ⏳ M7-T6: CLI reference documentation
+  - ⏳ M7-T7: Configuration reference
+  - ⏳ M7-T8: Parser extension guide
+  - ⏳ M7-T9: LLM provider extension guide
+  - ⏳ M7-T10: Example configurations
+  - ⏳ M7-T11: Final integration testing
 

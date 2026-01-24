@@ -28,11 +28,13 @@
 //! - [`parser`]: Language-specific code parsers and discovery types
 //! - [`graph_builder`]: Converts parser discoveries into a knowledge graph
 //! - [`coupling`]: Implicit coupling detection and resource access tracking
+//! - [`incremental`]: Incremental survey support for efficient re-surveys
 
 pub mod coupling;
 pub mod detection;
 pub mod github;
 pub mod graph_builder;
+pub mod incremental;
 pub mod parser;
 
 use forge_graph::{ForgeGraph, GraphError};
@@ -47,6 +49,10 @@ pub use coupling::{
 pub use detection::{DetectedLanguage, DetectedLanguages, DetectionMethod, detect_languages};
 pub use github::{CloneMethod, GitHubClient, GitHubError, RepoCache, RepoInfo};
 pub use graph_builder::GraphBuilder;
+pub use incremental::{
+    ChangeDetector, ChangeError, ChangeResult, RepoState, StateError, SurveyState,
+    get_current_commit, is_parseable_file,
+};
 // Re-export commonly used parser types for convenience
 pub use parser::{
     ApiCallDiscovery, CloudResourceDiscovery, DatabaseAccessDiscovery, DatabaseOperation,

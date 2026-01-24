@@ -1026,11 +1026,28 @@ forge-graph = { path = "../forge-graph" }
 
 ### Tasks
 
-- [ ] **M7-T1**: Implement incremental survey
+- [x] **M7-T1**: Implement incremental survey
   - Track file hashes or git commit SHAs
   - Only re-parse changed files
   - Merge changes into existing graph
-  - **Files**: `forge-survey/src/incremental.rs`
+  - **Files**: `forge-survey/src/incremental.rs`, `forge-cli/src/commands/survey.rs`
+  - **Implementation Notes**:
+    - Created `forge-survey/src/incremental.rs` with:
+      - `SurveyState` struct for persisting survey state across runs (version, timestamp, repos map)
+      - `RepoState` struct for tracking individual repo state (commit SHA, discovery count, languages)
+      - `ChangeDetector` for git-based change detection with `detect_changes()` method
+      - `ChangeResult` enum for reporting file changes (Added, Modified, Deleted, Unchanged)
+      - `get_current_commit()` async function for retrieving HEAD commit SHA
+      - `is_parseable_file()` function for filtering relevant source files
+      - 14 comprehensive unit tests all passing
+    - Integrated into CLI survey command (`forge-cli/src/commands/survey.rs`):
+      - `--incremental` flag now fully functional
+      - Loads/saves survey state to `.forge/survey-state.json`
+      - Loads existing graph for incremental updates via `GraphBuilder::from_graph()`
+      - Detects changes using `ChangeDetector` and skips unchanged repos
+      - Reports incremental survey stats (succeeded, skipped, failed)
+      - `survey_repository` now returns `SurveyInfo` tuple for state tracking
+    - All 521+ workspace tests passing, Clippy clean, formatting verified
 
 - [ ] **M7-T2**: Implement staleness indicators
   - Track last-surveyed timestamp per node
