@@ -6,6 +6,7 @@
 //! - Mermaid: Visual diagram syntax for documentation
 
 use crate::config::ForgeConfig;
+use crate::output;
 use crate::serializers::{JsonSerializer, MarkdownSerializer, MermaidSerializer, QueryInfo};
 use forge_graph::{ForgeGraph, NodeId, NodeType, SubgraphConfig};
 use std::path::PathBuf;
@@ -71,8 +72,10 @@ impl OutputFormat {
 pub fn run_map(options: MapOptions) -> Result<(), MapError> {
     // Load config for graph path and staleness_days
     let config = if let Some(config_path) = &options.config {
-        Some(ForgeConfig::load_from_path(std::path::Path::new(config_path))
-            .map_err(|e| MapError::ConfigError(e.to_string()))?)
+        Some(
+            ForgeConfig::load_from_path(std::path::Path::new(config_path))
+                .map_err(|e| MapError::ConfigError(e.to_string()))?,
+        )
     } else {
         // Try to load default config
         ForgeConfig::load_default().ok()
@@ -111,10 +114,10 @@ pub fn run_map(options: MapOptions) -> Result<(), MapError> {
     if let Some(output_path) = &options.output {
         std::fs::write(output_path, &output)
             .map_err(|e| MapError::WriteError(format!("{}: {}", output_path, e)))?;
-        eprintln!("Output written to: {}", output_path);
+        output::success(&format!("Output written to: {}", output_path));
     } else {
         // Write to stdout
-        println!("{}", output);
+        output::info(&output);
     }
 
     Ok(())
@@ -340,7 +343,8 @@ mod tests {
         let graph = create_test_graph();
         let seed_ids = vec![NodeId::new(NodeType::Service, "ns", "user-api").unwrap()];
 
-        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Markdown, None, 7).unwrap();
+        let output =
+            serialize_subgraph(&graph, &seed_ids, OutputFormat::Markdown, None, 7).unwrap();
 
         assert!(output.contains("# Relevant Context"));
         assert!(output.contains("User API"));

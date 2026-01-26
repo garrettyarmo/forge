@@ -48,6 +48,7 @@ impl SurveyProgress {
         self.main_bar.inc(1);
     }
 
+    #[allow(dead_code)]
     pub fn set_repo_status(&self, status: &str) {
         if let Some(ref bar) = self.current_repo_bar {
             bar.set_message(status.to_string());

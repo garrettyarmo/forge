@@ -1095,11 +1095,20 @@ forge-graph = { path = "../forge-graph" }
     - **All 533+ workspace tests passing**
     - All tests passing, implementation ready for CLI integration
 
-- [ ] **M7-T3**: Improve CLI UX
+- [x] **M7-T3**: Improve CLI UX
   - Progress bars with indicatif
   - Colored output
   - Error messages with suggestions
-  - **Files**: `forge-cli/src/main.rs`
+  - **Files**: `forge-cli/src/main.rs`, `forge-cli/src/progress.rs`, `forge-cli/src/output.rs`, `forge-cli/src/errors.rs`
+  - **Implementation Notes**:
+    - Created `progress.rs` with `SurveyProgress` struct for indicatif-based progress bars
+    - Created `output.rs` with styled console output functions (success, warning, error, info, heading)
+    - Created `errors.rs` with `ForgeError` enum and suggestion/format_for_cli methods
+    - Added global `--verbose` and `--quiet` flags to CLI
+    - Integrated progress bars into survey command (only shown when not in verbose mode)
+    - Replaced println/eprintln with styled output functions in survey, map, and init commands
+    - Added indicatif = "0.17" and console = "0.15" dependencies to forge-cli/Cargo.toml
+    - All 543 tests passing, clippy clean, formatting verified
 
 - [ ] **M7-T4**: Add `--verbose` and `--quiet` flags
   - Control output verbosity

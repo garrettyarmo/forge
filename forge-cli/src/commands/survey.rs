@@ -32,6 +32,8 @@
 //! ```
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
+use crate::output;
+use crate::progress::SurveyProgress;
 use forge_graph::ForgeGraph;
 use forge_llm::{LLMConfig, create_and_verify_provider, run_interactive_interview};
 use forge_survey::{
@@ -159,7 +161,12 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         return Err(SurveyError::NoRepositories);
     }
 
-    println!("Found {} repositories to survey", repos.len());
+    let mut progress = if !options.verbose {
+        Some(SurveyProgress::new(repos.len() as u64))
+    } else {
+        println!("Found {} repositories to survey", repos.len());
+        None
+    };
 
     // Calculate state path (same directory as graph)
     let state_path = config
@@ -236,6 +243,11 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     let mut repos_surveyed: Vec<(String, String, usize, Vec<String>, bool)> = Vec::new();
 
     for (i, repo) in repos.iter().enumerate() {
+        // Start repo in progress bar
+        if let Some(ref mut p) = progress {
+            p.start_repo(&repo.full_name);
+        }
+
         // For incremental mode, check if we need to survey this repo
         if let Some(ref detector) = change_detector {
             // Get the local path first to check changes
@@ -316,14 +328,20 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         match survey_repository(repo, &cache, &mut builder, &config, &options, &registry).await {
             Ok(survey_info) => {
                 success_count += 1;
-                if options.verbose {
-                    println!("  ✓ Successfully surveyed {}", repo.full_name);
+                if let Some(ref mut p) = progress {
+                    p.finish_repo();
+                } else {
+                    output::success(&format!("Successfully surveyed {}", repo.full_name));
                 }
                 repos_surveyed.push(survey_info);
             }
             Err(e) => {
                 error_count += 1;
-                println!("  ✗ Error surveying {}: {}", repo.full_name, e);
+                if let Some(ref mut p) = progress {
+                    p.finish_repo();
+                } else {
+                    output::error(&format!("Error surveying {}: {}", repo.full_name, e));
+                }
                 // Record failed survey
                 let local_path = if repo.owner == "local" {
                     PathBuf::from(&repo.full_name)
@@ -336,6 +354,11 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                 // Continue with other repos - don't crash entire survey
             }
         }
+    }
+
+    // Finish the progress bar
+    if let Some(ref p) = progress {
+        p.finish();
     }
 
     println!();
@@ -380,12 +403,12 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         // Report high-risk couplings
         for coupling in &coupling_result.implicit_couplings {
             if matches!(coupling.risk_level, forge_survey::CouplingRisk::High) {
-                println!(
-                    "  ⚠ High-risk coupling: {} ↔ {} ({})",
+                output::warning(&format!(
+                    "High-risk coupling: {} ↔ {} ({})",
                     coupling.service_a.name(),
                     coupling.service_b.name(),
                     coupling.reason
-                );
+                ));
             } else if options.verbose {
                 println!(
                     "  {:?}-risk coupling: {} ↔ {} ({})",

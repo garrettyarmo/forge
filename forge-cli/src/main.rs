@@ -27,6 +27,9 @@ use clap::{Parser, Subcommand};
 
 mod commands;
 mod config;
+mod errors;
+mod output;
+mod progress;
 pub mod serializers;
 pub mod token_budget;
 
@@ -38,6 +41,14 @@ pub mod token_budget;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Increase verbosity (-v, -vv, -vvv)
+    #[arg(short, long, action = clap::ArgAction::Count, global = true)]
+    verbose: u8,
+
+    /// Suppress all output except errors
+    #[arg(short, long, global = true)]
+    quiet: bool,
 }
 
 #[derive(Subcommand)]
@@ -171,7 +182,7 @@ fn main() {
     };
 
     if let Err(e) = result {
-        eprintln!("Error: {}", e);
+        output::error(&e);
         std::process::exit(1);
     }
 }

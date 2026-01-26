@@ -675,7 +675,10 @@ mod tests {
         #[test]
         fn test_is_stale_fresh_node() {
             let metadata = NodeMetadata::default();
-            assert!(!metadata.is_stale(7), "Newly created node should not be stale");
+            assert!(
+                !metadata.is_stale(7),
+                "Newly created node should not be stale"
+            );
         }
 
         #[test]
@@ -683,7 +686,10 @@ mod tests {
             let mut metadata = NodeMetadata::default();
             // Set updated_at to 10 days ago
             metadata.updated_at = Utc::now() - Duration::days(10);
-            assert!(metadata.is_stale(7), "Node updated 10 days ago should be stale (threshold: 7)");
+            assert!(
+                metadata.is_stale(7),
+                "Node updated 10 days ago should be stale (threshold: 7)"
+            );
         }
 
         #[test]
@@ -692,7 +698,10 @@ mod tests {
             // Set updated_at to exactly 7 days ago (minus 1 second to avoid timing issues)
             metadata.updated_at = Utc::now() - Duration::days(7) + Duration::seconds(1);
             // Should not be stale if just under threshold
-            assert!(!metadata.is_stale(7), "Node just under threshold should not be stale");
+            assert!(
+                !metadata.is_stale(7),
+                "Node just under threshold should not be stale"
+            );
 
             // Set updated_at to 7 days and 1 hour ago
             metadata.updated_at = Utc::now() - Duration::days(7) - Duration::hours(1);

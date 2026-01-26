@@ -23,6 +23,8 @@ use std::io::Write;
 use std::path::Path;
 use thiserror::Error;
 
+use crate::output;
+
 /// Errors that can occur during initialization.
 #[derive(Debug, Error)]
 pub enum InitError {
@@ -185,12 +187,15 @@ pub fn run_init(options: InitOptions) -> Result<(), InitError> {
     let mut file = std::fs::File::create(path)?;
     file.write_all(content.as_bytes())?;
 
-    println!("Created configuration file: {}", output_path);
-    println!();
-    println!("Next steps:");
-    println!("  1. Edit {} to configure your repositories", output_path);
-    println!("  2. Set your GitHub token: export GITHUB_TOKEN=<your-token>");
-    println!("  3. Run: forge survey");
+    output::success(&format!("Created configuration file: {}", output_path));
+    output::info("");
+    output::info("Next steps:");
+    output::info(&format!(
+        "  1. Edit {} to configure your repositories",
+        output_path
+    ));
+    output::info("  2. Set your GitHub token: export GITHUB_TOKEN=<your-token>");
+    output::info("  3. Run: forge survey");
 
     Ok(())
 }

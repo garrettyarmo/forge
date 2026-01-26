@@ -1,4 +1,4 @@
-use console::{style, Emoji};
+use console::{Emoji, style};
 
 pub static SUCCESS: Emoji<'_, '_> = Emoji("✅ ", "OK ");
 pub static WARNING: Emoji<'_, '_> = Emoji("⚠️  ", "!! ");
@@ -26,6 +26,7 @@ pub fn info(msg: &str) {
 }
 
 /// Print a heading
+#[allow(dead_code)]
 pub fn heading(msg: &str) {
     println!("\n{}\n{}", style(msg).bold(), "=".repeat(msg.len()));
 }

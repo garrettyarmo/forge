@@ -235,7 +235,12 @@ impl MarkdownSerializer {
         // Staleness indicator
         if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
             let age_desc = node.metadata.staleness_description();
-            writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
+            writeln!(
+                output,
+                "⚠️ **Status**: Stale ({}) - May be outdated\n",
+                age_desc
+            )
+            .unwrap();
         }
 
         // Business context
@@ -378,7 +383,12 @@ impl MarkdownSerializer {
         // Staleness indicator
         if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
             let age_desc = node.metadata.staleness_description();
-            writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
+            writeln!(
+                output,
+                "⚠️ **Status**: Stale ({}) - May be outdated\n",
+                age_desc
+            )
+            .unwrap();
         }
 
         // Find owner (service that OWNS this database)
@@ -472,7 +482,12 @@ impl MarkdownSerializer {
         // Staleness indicator
         if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
             let age_desc = node.metadata.staleness_description();
-            writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
+            writeln!(
+                output,
+                "⚠️ **Status**: Stale ({}) - May be outdated\n",
+                age_desc
+            )
+            .unwrap();
         }
 
         // Publishers
@@ -543,7 +558,12 @@ impl MarkdownSerializer {
             // Staleness indicator
             if self.staleness_days > 0 && resource.metadata.is_stale(self.staleness_days) {
                 let age_desc = resource.metadata.staleness_description();
-                writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
+                writeln!(
+                    output,
+                    "⚠️ **Status**: Stale ({}) - May be outdated\n",
+                    age_desc
+                )
+                .unwrap();
             }
 
             let users: Vec<_> = graph
