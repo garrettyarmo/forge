@@ -26,13 +26,12 @@
 use clap::{Parser, Subcommand};
 
 mod commands;
-mod config;
 mod errors;
-pub mod llm_instructions;
 mod output;
 mod progress;
-pub mod serializers;
-pub mod token_budget;
+
+// Re-use modules from the library
+pub use forge_cli::{config, llm_instructions, serializers, token_budget};
 
 /// Forge - Survey and map software ecosystems
 #[derive(Parser)]

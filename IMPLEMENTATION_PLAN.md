@@ -1287,12 +1287,30 @@ console = "0.15"
       - Subgraph serialization with llm_instructions
       - JSON format validation
 
-- [ ] **M8-T6**: Integration tests for LLM-optimized output
+- [x] **M8-T6**: Integration tests for LLM-optimized output
   - End-to-end test: survey → map → JSON with LLM instructions
   - Test multi-environment setup
   - Test deployment metadata extraction
   - Verify instruction quality
-  - **Files**: `forge-survey/tests/integration_llm.rs` (NEW)
+  - **Files**: `forge-cli/tests/integration_llm.rs` (NEW - located in forge-cli because it needs access to serializers)
+  - **Implementation Notes**:
+    - Created forge-cli as a hybrid crate (lib + bin) to enable integration testing
+    - Added `forge-cli/src/lib.rs` exporting serializers, llm_instructions, token_budget, and config modules
+    - 7 comprehensive integration tests covering:
+      - `test_survey_with_terraform_metadata`: Verifies Terraform parser extracts deployment metadata (M8-T1)
+      - `test_survey_with_sam_template`: Verifies SAM/CloudFormation parsing (M8-T2)
+      - `test_environment_mapping`: Verifies multi-service environment handling (M8-T3)
+      - `test_llm_instructions_generation`: Verifies LLM instruction generation (M8-T4)
+      - `test_mixed_iac_deployment_metadata`: Verifies mixed Terraform/SAM deployment metadata
+      - `test_llm_json_output_complete`: Verifies full JSON output structure (M8-T5)
+      - `test_deployment_command_generation`: Verifies deployment commands based on IaC
+    - Tests use realistic synthetic repositories with:
+      - Terraform files with tags, backend configs, workspace paths
+      - SAM templates with AWS::Serverless::Function resources
+      - Python/JavaScript source code with framework detection
+      - DynamoDB, SQS, SNS resource definitions
+    - All 7 integration tests passing
+    - All 655+ workspace tests passing
 
 ### Dependencies
 
@@ -1310,7 +1328,7 @@ serde_yaml = "0.9"  # Already exists, for SAM/CloudFormation parsing
 - [x] forge map --env production filters correctly
 - [x] JSON output includes llm_instructions field
 - [x] LLM instructions include code_style, testing, deployment, gotchas, dependencies sections
-- [x] All tests pass (648 tests total)
+- [x] All tests pass (655+ tests total)
 
 ---
 
@@ -1343,6 +1361,7 @@ Located in `*/tests/` directories:
 | `integration_terraform.rs` | Survey of synthetic Terraform config |
 | `integration_multi.rs` | Survey of multi-language repo |
 | `integration_coupling.rs` | Shared resource coupling detection |
+| `integration_llm.rs` | LLM-optimized output (survey → map → JSON) |
 | `e2e/full_workflow.rs` | Complete survey → map workflow |
 
 **Synthetic Test Repos:**

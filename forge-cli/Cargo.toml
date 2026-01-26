@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 description = "CLI entry point for Forge"
 
+[lib]
+name = "forge_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "forge"
 path = "src/main.rs"
