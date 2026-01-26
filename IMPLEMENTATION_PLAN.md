@@ -1157,10 +1157,20 @@ forge-graph = { path = "../forge-graph" }
     - Common workflows section (initial setup, daily development, documentation generation)
     - Cross-references to other docs (configuration, extending parsers, extending LLM providers)
 
-- [ ] **M7-T7**: Write configuration reference
+- [x] **M7-T7**: Write configuration reference
   - Full forge.yaml schema
   - All options with descriptions
   - **Files**: `docs/configuration.md`
+  - **Implementation Notes**:
+    - Created comprehensive `docs/configuration.md` with 500+ lines of documentation
+    - Full schema reference with all configuration sections
+    - Detailed section reference for: repos, github, languages, output, llm, token_budget, staleness_days, environments
+    - Type information, default values, and validation rules for all options
+    - Environment variable overrides table
+    - Complete example with all options commented
+    - Minimal examples for common use cases (GitHub org, local paths, explicit repos, mixed sources)
+    - Validation rules reference table
+    - Cross-references to other docs (CLI reference, extending parsers, extending LLM providers)
 
 - [ ] **M7-T8**: Write parser extension guide
   - Step-by-step for adding new language

@@ -208,9 +208,9 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
   - ✅ M7-T2: Staleness indicators (NodeMetadata.is_stale(), staleness_description(), serializer support)
   - ✅ M7-T3: Progress bars (indicatif) and CLI UX improvements
   - ✅ M7-T4: --verbose/--quiet flags (global flags, output module updates, quiet suppresses non-errors)
-  - ⏳ M7-T5: README.md
-  - ⏳ M7-T6: CLI reference documentation
-  - ⏳ M7-T7: Configuration reference
+  - ✅ M7-T5: README.md (comprehensive documentation with quick start, examples, configuration)
+  - ✅ M7-T6: CLI reference documentation (docs/cli-reference.md)
+  - ✅ M7-T7: Configuration reference (docs/configuration.md - full schema, all options with types/defaults)
   - ⏳ M7-T8: Parser extension guide
   - ⏳ M7-T9: LLM provider extension guide
   - ⏳ M7-T10: Example configurations
