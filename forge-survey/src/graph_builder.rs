@@ -163,6 +163,38 @@ impl GraphBuilder {
                 .insert("framework".to_string(), AttributeValue::String(framework));
         }
 
+        // Add deployment metadata if present
+        if let Some(metadata) = discovery.deployment_metadata {
+            node.attributes.insert(
+                "deployment_method".to_string(),
+                AttributeValue::String(metadata.deployment_method),
+            );
+            if let Some(workspace) = metadata.terraform_workspace {
+                node.attributes.insert(
+                    "terraform_workspace".to_string(),
+                    AttributeValue::String(workspace),
+                );
+            }
+            if let Some(env) = metadata.environment {
+                node.attributes
+                    .insert("environment".to_string(), AttributeValue::String(env));
+            }
+            if let Some(stack_name) = metadata.stack_name {
+                node.attributes
+                    .insert("stack_name".to_string(), AttributeValue::String(stack_name));
+            }
+            // Store non-empty tags as a map attribute
+            if !metadata.tags.is_empty() {
+                let tags_map: HashMap<String, AttributeValue> = metadata
+                    .tags
+                    .into_iter()
+                    .map(|(k, v)| (k, AttributeValue::String(v)))
+                    .collect();
+                node.attributes
+                    .insert("tags".to_string(), AttributeValue::Map(tags_map));
+            }
+        }
+
         self.graph.upsert_node(node);
         self.service_map.insert(discovery.name, id.clone());
         id
@@ -282,7 +314,7 @@ impl GraphBuilder {
             let id = NodeId::new(NodeType::Database, &namespace, &db_name)
                 .expect("Failed to create database NodeId");
 
-            let node = NodeBuilder::new()
+            let mut node = NodeBuilder::new()
                 .id(id.clone())
                 .node_type(NodeType::Database)
                 .display_name(&db_name)
@@ -292,6 +324,32 @@ impl GraphBuilder {
                 .source_line(db.source_line)
                 .build()
                 .expect("Failed to build database node");
+
+            // Add deployment metadata if present
+            if let Some(ref metadata) = db.deployment_metadata {
+                node.attributes.insert(
+                    "deployment_method".to_string(),
+                    AttributeValue::String(metadata.deployment_method.clone()),
+                );
+                if let Some(ref workspace) = metadata.terraform_workspace {
+                    node.attributes.insert(
+                        "terraform_workspace".to_string(),
+                        AttributeValue::String(workspace.clone()),
+                    );
+                }
+                if let Some(ref env) = metadata.environment {
+                    node.attributes.insert(
+                        "environment".to_string(),
+                        AttributeValue::String(env.clone()),
+                    );
+                }
+                if let Some(ref stack_name) = metadata.stack_name {
+                    node.attributes.insert(
+                        "stack_name".to_string(),
+                        AttributeValue::String(stack_name.clone()),
+                    );
+                }
+            }
 
             self.graph.upsert_node(node);
             self.resource_map.insert(db_name, id.clone());
@@ -348,7 +406,7 @@ impl GraphBuilder {
             let id = NodeId::new(NodeType::Queue, &namespace, &queue_name)
                 .expect("Failed to create queue NodeId");
 
-            let node = NodeBuilder::new()
+            let mut node = NodeBuilder::new()
                 .id(id.clone())
                 .node_type(NodeType::Queue)
                 .display_name(&queue_name)
@@ -358,6 +416,32 @@ impl GraphBuilder {
                 .source_line(queue.source_line)
                 .build()
                 .expect("Failed to build queue node");
+
+            // Add deployment metadata if present
+            if let Some(ref metadata) = queue.deployment_metadata {
+                node.attributes.insert(
+                    "deployment_method".to_string(),
+                    AttributeValue::String(metadata.deployment_method.clone()),
+                );
+                if let Some(ref workspace) = metadata.terraform_workspace {
+                    node.attributes.insert(
+                        "terraform_workspace".to_string(),
+                        AttributeValue::String(workspace.clone()),
+                    );
+                }
+                if let Some(ref env) = metadata.environment {
+                    node.attributes.insert(
+                        "environment".to_string(),
+                        AttributeValue::String(env.clone()),
+                    );
+                }
+                if let Some(ref stack_name) = metadata.stack_name {
+                    node.attributes.insert(
+                        "stack_name".to_string(),
+                        AttributeValue::String(stack_name.clone()),
+                    );
+                }
+            }
 
             self.graph.upsert_node(node);
             self.resource_map.insert(queue_name, id.clone());
@@ -400,7 +484,7 @@ impl GraphBuilder {
             let id = NodeId::new(NodeType::CloudResource, &namespace, &resource_name)
                 .expect("Failed to create cloud resource NodeId");
 
-            let node = NodeBuilder::new()
+            let mut node = NodeBuilder::new()
                 .id(id.clone())
                 .node_type(NodeType::CloudResource)
                 .display_name(&resource_name)
@@ -410,6 +494,32 @@ impl GraphBuilder {
                 .source_line(resource.source_line)
                 .build()
                 .expect("Failed to build cloud resource node");
+
+            // Add deployment metadata if present
+            if let Some(ref metadata) = resource.deployment_metadata {
+                node.attributes.insert(
+                    "deployment_method".to_string(),
+                    AttributeValue::String(metadata.deployment_method.clone()),
+                );
+                if let Some(ref workspace) = metadata.terraform_workspace {
+                    node.attributes.insert(
+                        "terraform_workspace".to_string(),
+                        AttributeValue::String(workspace.clone()),
+                    );
+                }
+                if let Some(ref env) = metadata.environment {
+                    node.attributes.insert(
+                        "environment".to_string(),
+                        AttributeValue::String(env.clone()),
+                    );
+                }
+                if let Some(ref stack_name) = metadata.stack_name {
+                    node.attributes.insert(
+                        "stack_name".to_string(),
+                        AttributeValue::String(stack_name.clone()),
+                    );
+                }
+            }
 
             self.graph.upsert_node(node);
             self.resource_map.insert(resource_name, id.clone());
@@ -466,6 +576,7 @@ mod tests {
             framework: Some("express".to_string()),
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         let service_id = builder.add_service(discovery);
@@ -488,6 +599,7 @@ mod tests {
             framework: None,
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         let discovery2 = ServiceDiscovery {
@@ -497,6 +609,7 @@ mod tests {
             framework: None,
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         let id1 = builder.add_service(discovery1);
@@ -520,6 +633,7 @@ mod tests {
             framework: None,
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         let service_id = builder.add_service(service_discovery);
@@ -531,6 +645,7 @@ mod tests {
             detection_method: "aws-sdk".to_string(),
             source_file: "src/db.ts".to_string(),
             source_line: 42,
+            deployment_metadata: None,
         };
 
         builder.add_database_access(&service_id, db_discovery);
@@ -558,6 +673,7 @@ mod tests {
             framework: None,
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         let service_id = builder.add_service(service_discovery);
@@ -569,6 +685,7 @@ mod tests {
             detection_method: "aws-sdk".to_string(),
             source_file: "src/db.ts".to_string(),
             source_line: 42,
+            deployment_metadata: None,
         };
 
         builder.add_database_access(&service_id, db_discovery);
@@ -589,6 +706,7 @@ mod tests {
             framework: None,
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         let service_id = builder.add_service(service_discovery.clone());
@@ -609,6 +727,7 @@ mod tests {
                 detection_method: "aws-sdk".to_string(),
                 source_file: "src/db.ts".to_string(),
                 source_line: 10,
+                deployment_metadata: None,
             }),
         ];
 

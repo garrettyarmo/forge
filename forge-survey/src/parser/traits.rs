@@ -82,6 +82,9 @@ pub struct ServiceDiscovery {
 
     /// Line number in the source file.
     pub source_line: u32,
+
+    /// Deployment metadata extracted from IaC (Terraform, SAM, CloudFormation).
+    pub deployment_metadata: Option<DeploymentMetadata>,
 }
 
 /// Details about an import/require statement.
@@ -142,6 +145,9 @@ pub struct DatabaseAccessDiscovery {
 
     /// Line number of the database access.
     pub source_line: u32,
+
+    /// Deployment metadata extracted from IaC (Terraform, SAM, CloudFormation).
+    pub deployment_metadata: Option<DeploymentMetadata>,
 }
 
 /// Types of database operations.
@@ -174,6 +180,9 @@ pub struct QueueOperationDiscovery {
 
     /// Line number of the queue operation.
     pub source_line: u32,
+
+    /// Deployment metadata extracted from IaC (Terraform, SAM, CloudFormation).
+    pub deployment_metadata: Option<DeploymentMetadata>,
 }
 
 /// Types of queue/message operations.
@@ -201,6 +210,31 @@ pub struct CloudResourceDiscovery {
 
     /// Line number of the resource usage.
     pub source_line: u32,
+
+    /// Deployment metadata extracted from IaC (Terraform, SAM, CloudFormation).
+    pub deployment_metadata: Option<DeploymentMetadata>,
+}
+
+/// Deployment metadata extracted from Infrastructure as Code files.
+///
+/// This metadata helps LLM coding agents understand HOW resources are deployed,
+/// enabling generation of correct deployment commands and operational context.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DeploymentMetadata {
+    /// How this resource is deployed: "terraform", "sam", "cloudformation", or "unknown".
+    pub deployment_method: String,
+
+    /// Terraform workspace (typically maps to environment).
+    pub terraform_workspace: Option<String>,
+
+    /// Environment name extracted from tags or parameters (dev/staging/prod).
+    pub environment: Option<String>,
+
+    /// CloudFormation/SAM stack name.
+    pub stack_name: Option<String>,
+
+    /// Additional tags extracted from resource definitions.
+    pub tags: std::collections::HashMap<String, String>,
 }
 
 /// Trait for language-specific parsers.
@@ -418,6 +452,7 @@ mod tests {
             entry_point: "src/index.js".to_string(),
             source_file: "package.json".to_string(),
             source_line: 1,
+            deployment_metadata: None,
         };
 
         assert_eq!(service.name, "my-service");

@@ -1178,12 +1178,25 @@ console = "0.15"
 
 ### Tasks
 
-- [ ] **M8-T1**: Enhanced Terraform parser for deployment metadata
+- [x] **M8-T1**: Enhanced Terraform parser for deployment metadata
   - Extract tags from resource blocks
   - Parse backend configuration for workspace detection
   - Infer deployment_method from tag patterns
   - Store deployment metadata in node attributes
-  - **Files**: `forge-survey/src/parser/terraform.rs`
+  - **Files**: `forge-survey/src/parser/terraform.rs`, `forge-survey/src/parser/traits.rs`, `forge-survey/src/graph_builder.rs`
+  - **Implementation Notes**:
+    - Added `DeploymentMetadata` struct to `traits.rs` with: deployment_method, terraform_workspace, environment, stack_name, tags
+    - Added `deployment_metadata: Option<DeploymentMetadata>` field to ServiceDiscovery, DatabaseAccessDiscovery, QueueOperationDiscovery, CloudResourceDiscovery
+    - Enhanced TerraformParser with:
+      - `extract_tags()` method to parse tags from HCL resource blocks
+      - `extract_backend_workspace()` method to extract workspace from backend S3 key path
+      - `workspace_from_key_path()` to parse workspace from S3 state paths
+      - `extract_environment_from_tags()` for case-insensitive environment tag lookup (Environment, Env, env)
+      - `infer_deployment_method()` to detect ManagedBy=Terraform tags
+      - `build_deployment_metadata()` to construct DeploymentMetadata from tags and backend config
+    - Updated GraphBuilder to propagate deployment metadata to node attributes (deployment_method, terraform_workspace, environment, stack_name, tags)
+    - All 550+ workspace tests passing
+    - 14 new unit tests for tag extraction and workspace parsing
 
 - [ ] **M8-T2**: SAM/CloudFormation parser
   - Parse template.yaml structure (SAM templates)

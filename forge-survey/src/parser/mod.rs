@@ -50,8 +50,8 @@ use crate::detection::DetectedLanguages;
 // Re-export all public types from traits
 pub use traits::{
     ApiCallDiscovery, CloudResourceDiscovery, DatabaseAccessDiscovery, DatabaseOperation,
-    Discovery, ImportDiscovery, Parser, ParserError, QueueOperationDiscovery, QueueOperationType,
-    ServiceDiscovery,
+    DeploymentMetadata, Discovery, ImportDiscovery, Parser, ParserError, QueueOperationDiscovery,
+    QueueOperationType, ServiceDiscovery,
 };
 
 // Re-export parsers

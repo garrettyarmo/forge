@@ -58,6 +58,7 @@ fn test_js_and_tf_integration() {
         framework: None,
         source_file: "main.js".to_string(),
         source_line: 1,
+        deployment_metadata: None,
     };
     let service_id = builder.add_service(service_discovery);
 

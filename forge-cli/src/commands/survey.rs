@@ -782,6 +782,7 @@ async fn survey_repository(
             entry_point: "unknown".to_string(),
             source_file: repo.full_name.clone(),
             source_line: 0,
+            deployment_metadata: None,
         };
         service_id = Some(builder.add_service(service));
     }

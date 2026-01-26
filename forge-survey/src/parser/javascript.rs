@@ -94,6 +94,7 @@ impl JavaScriptParser {
             entry_point,
             source_file: package_json_path.to_string_lossy().to_string(),
             source_line: 1,
+            deployment_metadata: None,
         })
     }
 
@@ -364,6 +365,7 @@ impl JavaScriptParser {
                 resource_name: None,
                 source_file: path.to_string_lossy().to_string(),
                 source_line: line,
+                deployment_metadata: None,
             }));
         } else if module_lower.contains("lambda") {
             discoveries.push(Discovery::CloudResourceUsage(CloudResourceDiscovery {
@@ -371,6 +373,7 @@ impl JavaScriptParser {
                 resource_name: None,
                 source_file: path.to_string_lossy().to_string(),
                 source_line: line,
+                deployment_metadata: None,
             }));
         } else if module == "aws-sdk" || module == "@aws-sdk/client-sts" {
             // Generic AWS SDK import - don't create specific discovery
@@ -456,6 +459,7 @@ impl JavaScriptParser {
                                                 detection_method: "method-call".to_string(),
                                                 source_file: path.to_string_lossy().to_string(),
                                                 source_line: node.start_position().row as u32 + 1,
+                                                deployment_metadata: None,
                                             },
                                         ));
                                         break;
@@ -643,6 +647,7 @@ impl JavaScriptParser {
                             detection_method: "aws-sdk-v3-command".to_string(),
                             source_file: path.to_string_lossy().to_string(),
                             source_line: node.start_position().row as u32 + 1,
+                            deployment_metadata: None,
                         }));
                         return; // Found a match, don't continue checking
                     }
@@ -660,6 +665,7 @@ impl JavaScriptParser {
                             operation: *operation,
                             source_file: path.to_string_lossy().to_string(),
                             source_line: node.start_position().row as u32 + 1,
+                            deployment_metadata: None,
                         }));
                         return; // Found a match, don't continue checking
                     }

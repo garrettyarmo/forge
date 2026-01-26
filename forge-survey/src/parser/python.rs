@@ -86,6 +86,7 @@ impl PythonParser {
                     .unwrap_or_else(|| "main.py".to_string()),
                 source_file: requirements_path.to_string_lossy().to_string(),
                 source_line: 1,
+                deployment_metadata: None,
             });
         }
 
@@ -114,6 +115,7 @@ impl PythonParser {
                 .unwrap_or_else(|| "main.py".to_string()),
             source_file: path.to_string_lossy().to_string(),
             source_line: 1,
+            deployment_metadata: None,
         })
     }
 
@@ -183,6 +185,7 @@ impl PythonParser {
                 .unwrap_or_else(|| "main.py".to_string()),
             source_file: path.to_string_lossy().to_string(),
             source_line: 1,
+            deployment_metadata: None,
         })
     }
 
@@ -538,6 +541,7 @@ impl PythonParser {
                     resource_name: None,
                     source_file,
                     source_line: line,
+                    deployment_metadata: None,
                 }));
             }
             "sqs" => {
@@ -547,6 +551,7 @@ impl PythonParser {
                     operation: QueueOperationType::Unknown,
                     source_file,
                     source_line: line,
+                    deployment_metadata: None,
                 }));
             }
             "sns" => {
@@ -556,6 +561,7 @@ impl PythonParser {
                     operation: QueueOperationType::Publish, // SNS is typically publish-only from code
                     source_file,
                     source_line: line,
+                    deployment_metadata: None,
                 }));
             }
             "lambda" => {
@@ -564,6 +570,7 @@ impl PythonParser {
                     resource_name: None,
                     source_file,
                     source_line: line,
+                    deployment_metadata: None,
                 }));
             }
             "events" | "eventbridge" => {
@@ -573,6 +580,7 @@ impl PythonParser {
                     operation: QueueOperationType::Unknown,
                     source_file,
                     source_line: line,
+                    deployment_metadata: None,
                 }));
             }
             _ => {
@@ -582,6 +590,7 @@ impl PythonParser {
                     resource_name: None,
                     source_file,
                     source_line: line,
+                    deployment_metadata: None,
                 }));
             }
         }
@@ -828,6 +837,7 @@ impl PythonParser {
                                         detection_method: format!("boto3.{}", method),
                                         source_file: path.to_string_lossy().to_string(),
                                         source_line: method_node.start_position().row as u32 + 1,
+                                        deployment_metadata: None,
                                     },
                                 ));
                                 break;
