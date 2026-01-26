@@ -1187,9 +1187,21 @@ forge-graph = { path = "../forge-graph" }
     - Complete checklist for parser submission
     - Links to existing parser implementations as references
 
-- [ ] **M7-T9**: Write LLM provider extension guide
+- [x] **M7-T9**: Write LLM provider extension guide
   - How to add new CLI adapter
   - **Files**: `docs/extending-llm-providers.md`
+  - **Implementation Notes**:
+    - Created comprehensive `docs/extending-llm-providers.md` with 500+ lines of documentation
+    - Covers complete step-by-step process: create adapter file, register in mod.rs, update factory in lib.rs, write tests
+    - Includes architecture diagram showing Provider Factory, LLMProvider trait, and CliAdapter base
+    - Documents LLMProvider trait methods: name(), is_available(), prompt(), prompt_with_history()
+    - LLMError types reference with when to use each variant
+    - CliAdapter base class usage and methods
+    - Best practices section (CLI-specific requirements, prompt formatting, response cleaning, timeouts, non-interactive mode, testing)
+    - Testing guidelines with unit test coverage requirements
+    - Configuration section showing forge.yaml usage
+    - Complete checklist for adapter submission
+    - Links to existing adapter implementations (Claude, Gemini, Codex) as references
 
 - [ ] **M7-T10**: Create example forge.yaml configurations
   - Minimal example
