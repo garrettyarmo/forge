@@ -5,5 +5,4 @@ PRD.md
 
 # Rust
 target/
-Cargo.lock
 **/*.rs.bk
