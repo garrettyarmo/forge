@@ -93,10 +93,6 @@ enum Commands {
         /// Only re-parse changed files
         #[arg(long)]
         incremental: bool,
-
-        /// Show detailed progress
-        #[arg(long, short)]
-        verbose: bool,
     },
 
     /// Serialize the knowledge graph to various formats
@@ -134,6 +130,11 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    // Set global output modes based on CLI flags
+    // Quiet takes precedence over verbose
+    output::set_quiet(cli.quiet);
+    output::set_verbosity(if cli.quiet { 0 } else { cli.verbose });
+
     let result = match cli.command {
         Commands::Init { org, output, force } => {
             let options = commands::InitOptions { org, output, force };
@@ -146,7 +147,6 @@ fn main() {
             exclude_lang,
             business_context,
             incremental,
-            verbose,
         } => {
             let options = commands::SurveyOptions {
                 config,
@@ -155,7 +155,6 @@ fn main() {
                 exclude_lang,
                 business_context,
                 incremental,
-                verbose,
             };
             // Survey is async, so we need a tokio runtime
             match tokio::runtime::Runtime::new() {

@@ -205,9 +205,9 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
 ### In Progress
 - ⏳ **Milestone 7 (Polish)**: Incremental survey, CLI UX, documentation
   - ✅ M7-T1: Incremental survey (SurveyState, ChangeDetector, git-based change detection)
-  - ⏳ M7-T2: Staleness indicators
-  - ⏳ M7-T3: Progress bars (indicatif)
-  - ⏳ M7-T4: --verbose/--quiet flags
+  - ✅ M7-T2: Staleness indicators (NodeMetadata.is_stale(), staleness_description(), serializer support)
+  - ✅ M7-T3: Progress bars (indicatif) and CLI UX improvements
+  - ✅ M7-T4: --verbose/--quiet flags (global flags, output module updates, quiet suppresses non-errors)
   - ⏳ M7-T5: README.md
   - ⏳ M7-T6: CLI reference documentation
   - ⏳ M7-T7: Configuration reference

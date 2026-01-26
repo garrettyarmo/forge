@@ -1110,9 +1110,21 @@ forge-graph = { path = "../forge-graph" }
     - Added indicatif = "0.17" and console = "0.15" dependencies to forge-cli/Cargo.toml
     - All 543 tests passing, clippy clean, formatting verified
 
-- [ ] **M7-T4**: Add `--verbose` and `--quiet` flags
+- [x] **M7-T4**: Add `--verbose` and `--quiet` flags
   - Control output verbosity
-  - **Files**: `forge-cli/src/main.rs`
+  - **Files**: `forge-cli/src/main.rs`, `forge-cli/src/output.rs`, `forge-cli/src/commands/survey.rs`
+  - **Implementation Notes**:
+    - Added global `--verbose` (-v) and `--quiet` (-q) flags to CLI struct in main.rs
+    - Verbose supports multiple levels via count action (-v, -vv, -vvv)
+    - Updated output.rs with global AtomicBool for quiet mode and AtomicU8 for verbosity level
+    - Added `set_quiet()`, `is_quiet()`, `set_verbosity()`, `get_verbosity()`, `is_verbose()`, `verbose()` functions
+    - Quiet mode suppresses all output except errors
+    - Verbose mode enables detailed progress messages
+    - Removed survey-specific `--verbose` flag, using global flag instead
+    - Updated survey command to use `output::is_verbose()` and `output::verbose()` functions
+    - All output functions (success, warning, info, heading) respect quiet mode
+    - 5 new tests for output module covering quiet mode and verbosity
+    - All 655+ workspace tests passing, clippy clean, formatting verified
 
 - [ ] **M7-T5**: Write README.md
   - Installation instructions

@@ -27,8 +27,11 @@
 //! # Exclude specific languages
 //! forge survey --exclude-lang "terraform,python"
 //!
-//! # Enable verbose output
-//! forge survey --verbose
+//! # Enable verbose output (global flag)
+//! forge -v survey
+//!
+//! # Suppress all output except errors (global flag)
+//! forge -q survey
 //! ```
 
 use crate::config::{CloneMethod, ConfigError, ForgeConfig};
@@ -104,8 +107,6 @@ pub struct SurveyOptions {
     pub business_context: bool,
     /// Only re-parse changed files (M7 feature).
     pub incremental: bool,
-    /// Show detailed progress.
-    pub verbose: bool,
 }
 
 /// Run the `forge survey` command.
@@ -119,20 +120,14 @@ pub struct SurveyOptions {
 /// Returns `Ok(())` if the survey completed successfully, or an error if
 /// any step failed.
 pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
-    if options.verbose {
-        println!("Starting survey...");
-    }
+    output::verbose("Starting survey...");
 
     // Load configuration
     let mut config = if let Some(config_path) = &options.config {
-        if options.verbose {
-            println!("Loading configuration from: {}", config_path);
-        }
+        output::verbose(&format!("Loading configuration from: {}", config_path));
         ForgeConfig::load_from_path(Path::new(config_path))?
     } else {
-        if options.verbose {
-            println!("Loading configuration from: forge.yaml");
-        }
+        output::verbose("Loading configuration from: forge.yaml");
         ForgeConfig::load_default()?
     };
 
@@ -149,10 +144,14 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         config.languages.exclude.extend(langs);
     }
 
-    if options.verbose {
-        println!("Output graph path: {}", config.output.graph_path.display());
-        println!("Cache path: {}", config.output.cache_path.display());
-    }
+    output::verbose(&format!(
+        "Output graph path: {}",
+        config.output.graph_path.display()
+    ));
+    output::verbose(&format!(
+        "Cache path: {}",
+        config.output.cache_path.display()
+    ));
 
     // Collect repositories to survey
     let repos = collect_repos(&config, &options).await?;
@@ -161,7 +160,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         return Err(SurveyError::NoRepositories);
     }
 
-    let mut progress = if !options.verbose {
+    let mut progress = if !output::is_verbose() {
         Some(SurveyProgress::new(repos.len() as u64))
     } else {
         println!("Found {} repositories to survey", repos.len());
@@ -180,7 +179,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     let survey_state = if options.incremental && state_path.exists() {
         match SurveyState::load(&state_path) {
             Ok(state) => {
-                if options.verbose {
+                if output::is_verbose() {
                     println!(
                         "Loaded survey state: {} repos surveyed previously",
                         state.repo_count()
@@ -203,7 +202,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     let mut builder = if options.incremental && config.output.graph_path.exists() {
         match ForgeGraph::load_from_file(&config.output.graph_path) {
             Ok(graph) => {
-                if options.verbose {
+                if output::is_verbose() {
                     println!(
                         "Loaded existing graph: {} nodes, {} edges",
                         graph.node_count(),
@@ -262,7 +261,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                 match detector.detect_changes(&repo.full_name, &local_path).await {
                     Ok(changes) if !changes.needs_full_survey && !changes.has_changes() => {
                         skipped_count += 1;
-                        if options.verbose {
+                        if output::is_verbose() {
                             println!(
                                 "[{}/{}] Skipping {} (no changes)",
                                 i + 1,
@@ -284,7 +283,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                     }
                     Ok(changes) => {
                         if changes.needs_full_survey {
-                            if options.verbose {
+                            if output::is_verbose() {
                                 println!(
                                     "[{}/{}] Full survey needed for {}: {}",
                                     i + 1,
@@ -296,7 +295,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                                         .unwrap_or("unknown reason")
                                 );
                             }
-                        } else if options.verbose {
+                        } else if output::is_verbose() {
                             println!(
                                 "[{}/{}] Surveying {} ({} added, {} modified, {} deleted)",
                                 i + 1,
@@ -309,7 +308,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                         }
                     }
                     Err(e) => {
-                        if options.verbose {
+                        if output::is_verbose() {
                             println!(
                                 "  Warning: Could not detect changes for {}: {}",
                                 repo.full_name, e
@@ -383,7 +382,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     );
 
     // Run coupling analysis (M4-T4)
-    if options.verbose {
+    if output::is_verbose() {
         println!("Running coupling analysis...");
     }
     let mut analyzer = CouplingAnalyzer::new(&graph);
@@ -409,7 +408,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                     coupling.service_b.name(),
                     coupling.reason
                 ));
-            } else if options.verbose {
+            } else if output::is_verbose() {
                 println!(
                     "  {:?}-risk coupling: {} ↔ {} ({})",
                     coupling.risk_level,
@@ -419,7 +418,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
                 );
             }
         }
-    } else if options.verbose {
+    } else if output::is_verbose() {
         println!("Coupling analysis: no implicit couplings detected");
     }
 
@@ -428,7 +427,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     let edge_count_after = graph.edge_count();
     if edge_count_after > graph.node_count() {
         // Only report if edges were actually added
-        if options.verbose {
+        if output::is_verbose() {
             println!("Added coupling edges: {} total edges now", edge_count_after);
         }
     }
@@ -436,7 +435,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
     // Create output directory if needed
     if let Some(parent) = config.output.graph_path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            if options.verbose {
+            if output::is_verbose() {
                 println!("Creating output directory: {}", parent.display());
             }
             std::fs::create_dir_all(parent)?;
@@ -464,7 +463,7 @@ pub async fn run_survey(options: SurveyOptions) -> Result<(), SurveyError> {
         }
 
         new_state.save(&state_path)?;
-        if options.verbose {
+        if output::is_verbose() {
             println!(
                 "Saved survey state to: {} ({} repos tracked)",
                 state_path.display(),
@@ -532,7 +531,7 @@ async fn collect_repos(
 
     // If --repos flag is provided, it overrides all config sources
     if let Some(repos_arg) = &options.repos {
-        if options.verbose {
+        if output::is_verbose() {
             println!("Using repos from --repos flag");
         }
         for repo_str in repos_arg.split(',') {
@@ -548,7 +547,7 @@ async fn collect_repos(
 
     // Collect from GitHub org
     if let Some(org) = &config.repos.github_org {
-        if options.verbose {
+        if output::is_verbose() {
             println!("Discovering repositories from GitHub org: {}", org);
         }
 
@@ -564,14 +563,14 @@ async fn collect_repos(
         )?;
 
         let org_repos = client.list_org_repos(org).await?;
-        if options.verbose {
+        if output::is_verbose() {
             println!("  Found {} repositories in org", org_repos.len());
         }
 
         for repo in org_repos {
             if !config.is_excluded(&repo.name) {
                 repos.push(repo);
-            } else if options.verbose {
+            } else if output::is_verbose() {
                 println!("  Excluding {} (matches exclude pattern)", repo.name);
             }
         }
@@ -579,7 +578,7 @@ async fn collect_repos(
 
     // Collect from explicit GitHub repos
     if !config.repos.github_repos.is_empty() {
-        if options.verbose {
+        if output::is_verbose() {
             println!(
                 "Fetching {} explicit GitHub repositories",
                 config.repos.github_repos.len()
@@ -604,7 +603,7 @@ async fn collect_repos(
                     Ok(repo) => repos.push(repo),
                     Err(e) => println!("  Warning: Failed to fetch {}: {}", repo_str, e),
                 }
-            } else if options.verbose {
+            } else if output::is_verbose() {
                 println!("  Excluding {} (matches exclude pattern)", name);
             }
         }
@@ -612,7 +611,7 @@ async fn collect_repos(
 
     // Collect from local paths
     for local_path in &config.repos.local_paths {
-        if options.verbose {
+        if output::is_verbose() {
             println!("Adding local repository: {}", local_path.display());
         }
 
@@ -649,7 +648,7 @@ async fn survey_repository(
     cache: &RepoCache,
     builder: &mut GraphBuilder,
     config: &ForgeConfig,
-    options: &SurveyOptions,
+    _options: &SurveyOptions,
     registry: &ParserRegistry,
 ) -> Result<SurveyInfo, SurveyError> {
     // Determine local path
@@ -658,14 +657,14 @@ async fn survey_repository(
         PathBuf::from(&repo.full_name)
     } else {
         // GitHub repository - clone/update to cache
-        if options.verbose {
+        if output::is_verbose() {
             println!("  Cloning/updating repository...");
         }
         let token = config.github_token().ok();
         cache.ensure_repo(repo, token.as_deref()).await?
     };
 
-    if options.verbose {
+    if output::is_verbose() {
         println!("  Local path: {}", local_path.display());
     }
 
@@ -681,7 +680,7 @@ async fn survey_repository(
     let detected = detect_languages(&local_path);
     let detected_languages: Vec<String> = detected.iter().map(|l| l.name.clone()).collect();
 
-    if options.verbose {
+    if output::is_verbose() {
         if detected.is_empty() {
             println!("  No supported languages detected");
         } else {
@@ -697,7 +696,7 @@ async fn survey_repository(
     let parsers = registry.get_for_languages(&detected, &config.languages.exclude);
 
     if parsers.is_empty() {
-        if options.verbose {
+        if output::is_verbose() {
             if !config.languages.exclude.is_empty() {
                 println!(
                     "  No parsers available after exclusions (excluded: {})",
@@ -716,7 +715,7 @@ async fn survey_repository(
         ));
     }
 
-    if options.verbose {
+    if output::is_verbose() {
         println!("  Using {} parser(s)", parsers.len());
     }
 
@@ -733,7 +732,7 @@ async fn survey_repository(
                 .downcast_ref::<forge_survey::parser::javascript::JavaScriptParser>(
             ) {
                 if let Some(service) = js_parser.parse_package_json(&local_path) {
-                    if options.verbose {
+                    if output::is_verbose() {
                         println!("  Found service: {} (from package.json)", service.name);
                     }
                     service_id = Some(builder.add_service(service));
@@ -755,7 +754,7 @@ async fn survey_repository(
                     .downcast_ref::<forge_survey::parser::python::PythonParser>(
                 ) {
                     if let Some(service) = py_parser.parse_project_config(&local_path) {
-                        if options.verbose {
+                        if output::is_verbose() {
                             println!("  Found service: {} (from Python config)", service.name);
                         }
                         service_id = Some(builder.add_service(service));
@@ -767,7 +766,7 @@ async fn survey_repository(
 
     // If no service was detected from config files, use repo name
     if service_id.is_none() {
-        if options.verbose {
+        if output::is_verbose() {
             println!("  No service metadata found - using repository name");
         }
         // Create a minimal service discovery from the repo name
@@ -792,7 +791,7 @@ async fn survey_repository(
     // Run each parser and collect discoveries
     let mut total_discoveries = 0usize;
     for parser in &parsers {
-        if options.verbose {
+        if output::is_verbose() {
             let extensions = parser.supported_extensions();
             println!("  Parsing {} files...", extensions.join("/"));
         }
@@ -800,7 +799,7 @@ async fn survey_repository(
         match parser.parse_repo(&local_path) {
             Ok(discoveries) => {
                 let count = discoveries.len();
-                if options.verbose {
+                if output::is_verbose() {
                     println!("    Found {} code discoveries", count);
                 }
                 total_discoveries += count;
