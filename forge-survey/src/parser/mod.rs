@@ -37,6 +37,7 @@
 //!
 //! See the extension guide in `docs/extending-parsers.md` for detailed instructions.
 
+pub mod cloudformation;
 pub mod javascript;
 pub mod python;
 pub mod terraform;
@@ -55,6 +56,7 @@ pub use traits::{
 };
 
 // Re-export parsers
+pub use cloudformation::CloudFormationParser;
 pub use javascript::JavaScriptParser;
 pub use python::PythonParser;
 pub use terraform::TerraformParser;
@@ -135,6 +137,14 @@ impl ParserRegistry {
         // Create and register Terraform parser
         let terraform_parser: Arc<dyn Parser> = Arc::new(TerraformParser::new()?);
         parsers.insert("terraform".to_string(), terraform_parser);
+
+        // Create and register CloudFormation/SAM parser
+        let cloudformation_parser: Arc<dyn Parser> = Arc::new(CloudFormationParser::new()?);
+        parsers.insert(
+            "cloudformation".to_string(),
+            Arc::clone(&cloudformation_parser),
+        );
+        parsers.insert("sam".to_string(), cloudformation_parser);
 
         Ok(Self { parsers })
     }
@@ -272,14 +282,16 @@ mod tests {
     fn test_registry_new_creates_all_parsers() {
         let registry = ParserRegistry::new().expect("Failed to create registry");
 
-        // Should have 4 language mappings
-        assert_eq!(registry.parsers.len(), 4);
+        // Should have 6 language mappings (js, ts, python, terraform, cloudformation, sam)
+        assert_eq!(registry.parsers.len(), 6);
 
         // All expected languages should be present
         assert!(registry.parsers.contains_key("javascript"));
         assert!(registry.parsers.contains_key("typescript"));
         assert!(registry.parsers.contains_key("python"));
         assert!(registry.parsers.contains_key("terraform"));
+        assert!(registry.parsers.contains_key("cloudformation"));
+        assert!(registry.parsers.contains_key("sam"));
     }
 
     #[test]
@@ -566,11 +578,13 @@ mod tests {
 
         let languages = registry.available_languages();
 
-        assert_eq!(languages.len(), 4);
+        assert_eq!(languages.len(), 6);
         assert!(languages.contains(&"javascript"));
         assert!(languages.contains(&"typescript"));
         assert!(languages.contains(&"python"));
         assert!(languages.contains(&"terraform"));
+        assert!(languages.contains(&"cloudformation"));
+        assert!(languages.contains(&"sam"));
     }
 
     #[test]

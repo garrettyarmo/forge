@@ -25,6 +25,9 @@ streaming-iterator = "0.1"
 # HCL parsing for Terraform
 hcl-rs = "0.18"
 
+# YAML parsing for CloudFormation/SAM
+serde_yaml = "0.9"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }

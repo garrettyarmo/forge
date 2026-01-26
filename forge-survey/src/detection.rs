@@ -332,6 +332,40 @@ pub fn check_config_files(repo_path: &Path) -> Vec<DetectedLanguage> {
     // Note: Terraform doesn't have a specific config file
     // It relies on extension scanning (.tf, .tfvars)
 
+    // Check for CloudFormation/SAM template files
+    let cloudformation_templates = [
+        "template.yaml",
+        "template.yml",
+        "template.json",
+        "samconfig.yaml",
+        "samconfig.yml",
+        "samconfig.toml",
+    ];
+
+    for template in &cloudformation_templates {
+        if !detected_names.contains("cloudformation") && repo_path.join(template).exists() {
+            // Check if it's actually a CloudFormation/SAM template by reading the file
+            let template_path = repo_path.join(template);
+            if let Ok(content) = fs::read_to_string(&template_path) {
+                // Check for CloudFormation markers
+                if content.contains("AWSTemplateFormatVersion")
+                    || content.contains("Transform")
+                    || content.contains("AWS::Serverless")
+                    || content.contains("AWS::Lambda")
+                    || content.contains("AWS::DynamoDB")
+                {
+                    detected.push(DetectedLanguage {
+                        name: "cloudformation".to_string(),
+                        confidence: CONFIG_CONFIDENCE,
+                        detection_method: DetectionMethod::ConfigFile,
+                    });
+                    detected_names.insert("cloudformation".to_string());
+                    break;
+                }
+            }
+        }
+    }
+
     detected
 }
 

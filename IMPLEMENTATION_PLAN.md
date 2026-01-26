@@ -1198,12 +1198,30 @@ console = "0.15"
     - All 550+ workspace tests passing
     - 14 new unit tests for tag extraction and workspace parsing
 
-- [ ] **M8-T2**: SAM/CloudFormation parser
+- [x] **M8-T2**: SAM/CloudFormation parser
   - Parse template.yaml structure (SAM templates)
   - Extract AWS::Serverless::* resources
   - Detect SAM vs raw CloudFormation
   - Extract stack parameters and outputs
   - **Files**: `forge-survey/src/parser/cloudformation.rs` (NEW)
+  - **Implementation Notes**:
+    - Created cloudformation.rs with CloudFormationParser struct
+    - Implemented SAM vs CloudFormation detection via Transform field
+    - Parses AWS::Serverless::Function → Service nodes
+    - Parses AWS::Lambda::Function → Service nodes
+    - Parses AWS::DynamoDB::Table → Database nodes
+    - Parses AWS::SQS::Queue → Queue nodes
+    - Parses AWS::SNS::Topic → Queue nodes
+    - Parses AWS::S3::Bucket → CloudResource nodes
+    - Parses AWS::Serverless::Api → CloudResource (apigateway) nodes
+    - Extracts deployment metadata (deployment_method, stack_name, environment)
+    - Environment extraction from Parameters section
+    - Handles intrinsic functions (!Ref, !Sub, !GetAtt)
+    - Supports both YAML and JSON templates
+    - 17 comprehensive unit tests
+    - Registered in ParserRegistry as "cloudformation" and "sam"
+    - Added CloudFormation detection in detection.rs
+    - Added serde_yaml dependency to forge-survey/Cargo.toml
 
 - [ ] **M8-T3**: Environment and account mapping
   - Extend forge.yaml with environment definitions
