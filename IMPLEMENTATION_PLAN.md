@@ -1246,12 +1246,23 @@ console = "0.15"
       - 5 new map command tests for environment filtering
     - All 573+ workspace tests passing
 
-- [ ] **M8-T4**: LLM instruction generation module
+- [x] **M8-T4**: LLM instruction generation module
   - Convert business context gotchas to DO NOT statements
   - Infer code style from AST patterns
   - Generate deployment commands from metadata
   - Extract dependency descriptions with context
   - **Files**: `forge-cli/src/llm_instructions.rs` (NEW)
+  - **Implementation Notes**:
+    - Created `forge-cli/src/llm_instructions.rs` with `LlmInstructions` and `DependencyInstructions` structs with serde serialization
+    - Implemented `InstructionGenerator` with code style inference:
+      - Python: FastAPI, Flask, Django, Chalice, Starlette, generic
+      - TypeScript/JavaScript: Express, NestJS, React, generic
+    - Implemented testing requirement inference (pytest, jest, mocha, vitest, unittest)
+    - Implemented deployment command generation (Terraform, SAM, CloudFormation)
+    - Implemented gotcha transformation to DO NOT/MUST statements
+    - Implemented dependency instruction generation from graph edges
+    - 29 comprehensive unit tests all passing
+    - Total workspace tests now 600+ all passing
 
 - [ ] **M8-T5**: Enhanced JSON output with llm_instructions
   - Add llm_instructions field to node serialization

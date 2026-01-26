@@ -28,6 +28,7 @@ use clap::{Parser, Subcommand};
 mod commands;
 mod config;
 mod errors;
+pub mod llm_instructions;
 mod output;
 mod progress;
 pub mod serializers;
