@@ -1142,10 +1142,20 @@ forge-graph = { path = "../forge-graph" }
     - Output format descriptions (Markdown, JSON, Mermaid)
     - Architecture overview and development commands
 
-- [ ] **M7-T6**: Write CLI reference documentation
+- [x] **M7-T6**: Write CLI reference documentation
   - All commands and flags
   - Examples for each
   - **Files**: `docs/cli-reference.md`
+  - **Implementation Notes**:
+    - Created comprehensive `docs/cli-reference.md` with 400+ lines of documentation
+    - Covers all three commands: `forge init`, `forge survey`, `forge map`
+    - Documents every flag with type, default value, and description
+    - Includes synopsis, global options (--verbose, --quiet), and verbosity levels
+    - Detailed examples for each command including combined options
+    - Exit codes documented for each command
+    - Environment variables section with all FORGE_* overrides
+    - Common workflows section (initial setup, daily development, documentation generation)
+    - Cross-references to other docs (configuration, extending parsers, extending LLM providers)
 
 - [ ] **M7-T7**: Write configuration reference
   - Full forge.yaml schema
