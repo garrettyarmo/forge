@@ -1,0 +1,148 @@
+# Full-Featured Forge Configuration
+#
+# This example demonstrates all available configuration options.
+# Customize this for production use.
+#
+# Prerequisites:
+#   1. Set your GitHub token: export GITHUB_TOKEN=ghp_xxxx
+#   2. (Optional) Set up Claude CLI for business context: pip install claude-cli
+#
+# Usage:
+#   forge survey --config examples/full-featured.yaml
+#   forge survey --config examples/full-featured.yaml --business-context
+#   forge map --config examples/full-featured.yaml --format json
+
+# ============================================
+# Repository Sources
+# ============================================
+# You can combine multiple sources: org, explicit repos, and local paths.
+# Repos from all sources are merged and deduplicated.
+
+repos:
+  # GitHub organization - discovers all accessible repos automatically
+  github_org: "my-company"
+
+  # Explicit list of repos (owner/repo format)
+  # Use this to include repos from other orgs or specific repos only
+  github_repos:
+    - "my-company/shared-library"
+    - "partner-org/integration-service"
+
+  # Local paths for repos not on GitHub or for testing
+  local_paths:
+    - "~/workspace/local-service"
+
+  # Glob patterns to exclude repos by name
+  # Matches are case-sensitive and applied to the repo name only (not owner)
+  exclude:
+    - "*-deprecated"     # Exclude archived/old repos
+    - "*-archive"
+    - "fork-*"           # Exclude forks
+    - "test-*"           # Exclude test repos
+    - "*.backup"
+
+# ============================================
+# GitHub Configuration
+# ============================================
+
+github:
+  # Environment variable containing your GitHub Personal Access Token
+  # For private repos, token needs 'repo' scope
+  # For public repos only, 'public_repo' scope is sufficient
+  token_env: "GITHUB_TOKEN"
+
+  # GitHub Enterprise: uncomment and set your API URL
+  # api_url: "https://github.mycompany.com/api/v3"
+
+  # Clone method: https (default) or ssh
+  # Use ssh if you have SSH keys set up and prefer not to use tokens
+  clone_method: https
+
+  # Number of repos to clone in parallel (default: 4)
+  # Increase for faster surveys, decrease if hitting rate limits
+  clone_concurrency: 8
+
+# ============================================
+# Language Detection
+# ============================================
+# Languages are auto-detected from file extensions and config files:
+#   - JavaScript/TypeScript: package.json, *.js, *.ts
+#   - Python: requirements.txt, pyproject.toml, *.py
+#   - Terraform: *.tf
+#   - CloudFormation/SAM: template.yaml, *.cfn.yaml
+#
+# Only configure this section if you need to exclude languages.
+
+languages:
+  exclude:
+    # Uncomment to skip Terraform parsing (e.g., if managed separately)
+    # - terraform
+
+# ============================================
+# Output Configuration
+# ============================================
+
+output:
+  # Where to save the knowledge graph
+  graph_path: ".forge/graph.json"
+
+  # Where to cache cloned repositories
+  # Uses ~ expansion for home directory
+  cache_path: "~/.forge/repos"
+
+# ============================================
+# Environment Definitions (M8 Feature)
+# ============================================
+# Map repos to deployment environments for LLM context.
+# This helps coding agents understand deployment targets.
+
+environments:
+  - name: production
+    aws_account_id: "123456789012"
+    repos:
+      - "my-company/api-*"
+      - "my-company/user-service"
+      - "my-company/payment-service"
+
+  - name: staging
+    aws_account_id: "987654321098"
+    repos:
+      - "my-company/*-staging"
+      - "my-company/staging-*"
+
+  - name: development
+    # No AWS account - local development only
+    repos:
+      - "my-company/*-dev"
+      - "my-company/local-*"
+    local_only: true
+
+# ============================================
+# LLM Configuration
+# ============================================
+# Used for business context interviews (--business-context flag).
+# Forge shells out to coding agent CLIs - no API keys needed here.
+
+llm:
+  # Provider: claude | gemini | codex
+  provider: "claude"
+
+  # Custom CLI path if not in PATH
+  # cli_path: "/usr/local/bin/claude"
+
+# ============================================
+# Token Budget
+# ============================================
+# Default token budget for 'forge map' output.
+# Helps fit output within LLM context windows.
+# Can be overridden with --budget flag.
+
+token_budget: 8000
+
+# ============================================
+# Staleness Configuration
+# ============================================
+# Number of days after which a node is marked as "stale".
+# Stale nodes are highlighted in output to indicate they may be outdated.
+
+staleness_days: 7

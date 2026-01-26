@@ -1,0 +1,25 @@
+# Local-Only Forge Configuration
+#
+# Survey local repositories without GitHub API access.
+# Useful for:
+#   - Air-gapped environments
+#   - Testing Forge on local projects
+#   - CI/CD pipelines with checked-out repos
+#
+# No GitHub token required for this configuration.
+#
+# Usage:
+#   forge survey --config examples/local-only.yaml
+#   forge map --config examples/local-only.yaml
+
+repos:
+  # Paths can be absolute or relative to the config file's directory
+  local_paths:
+    - "./services/user-api"
+    - "./services/order-api"
+    - "./services/payment-api"
+    - "./infra/terraform"
+
+output:
+  # Store the knowledge graph locally
+  graph_path: ".forge/graph.json"

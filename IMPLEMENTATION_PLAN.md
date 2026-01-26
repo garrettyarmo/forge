@@ -1203,11 +1203,21 @@ forge-graph = { path = "../forge-graph" }
     - Complete checklist for adapter submission
     - Links to existing adapter implementations (Claude, Gemini, Codex) as references
 
-- [ ] **M7-T10**: Create example forge.yaml configurations
+- [x] **M7-T10**: Create example forge.yaml configurations
   - Minimal example
   - Full-featured example
   - Multi-org example
   - **Files**: `examples/`
+  - **Implementation Notes**:
+    - Created `examples/` directory with 5 comprehensive configuration examples
+    - `examples/minimal.yaml`: Simplest working config - just GitHub org
+    - `examples/local-only.yaml`: Survey local repos without GitHub API
+    - `examples/full-featured.yaml`: All configuration options with detailed comments
+    - `examples/multi-org.yaml`: Multi-org setup with explicit repos from multiple orgs
+    - `examples/ci-cd.yaml`: Optimized for CI/CD pipeline integration
+    - `examples/README.md`: Documentation explaining each example and usage
+    - Added 5 validation tests in `forge-cli/src/config.rs` to ensure examples parse correctly
+    - All tests passing (660+ workspace tests)
 
 - [ ] **M7-T11**: Final integration testing
   - End-to-end with synthetic test repos

@@ -1,0 +1,51 @@
+# CI/CD Pipeline Forge Configuration
+#
+# Optimized for running Forge in continuous integration pipelines.
+# Assumes repos are already checked out by the CI system.
+#
+# Usage in GitHub Actions:
+#   - name: Checkout all repos
+#     uses: actions/checkout@v4
+#     with:
+#       path: repos/
+#
+#   - name: Survey ecosystem
+#     run: |
+#       forge survey --config examples/ci-cd.yaml
+#       forge map --format json > ecosystem.json
+#
+#   - name: Upload artifact
+#     uses: actions/upload-artifact@v4
+#     with:
+#       name: ecosystem-graph
+#       path: ecosystem.json
+
+repos:
+  # In CI, repos are typically already cloned
+  local_paths:
+    - "./repos/api-gateway"
+    - "./repos/user-service"
+    - "./repos/order-service"
+    - "./repos/shared-library"
+
+# No GitHub API calls needed - repos already present
+github:
+  token_env: "GITHUB_TOKEN"  # May still be used for API metadata
+
+output:
+  # Store in CI workspace
+  graph_path: "./artifacts/graph.json"
+  # Ephemeral cache (CI runners are stateless)
+  cache_path: "./cache/repos"
+
+# Environments for deployment verification
+environments:
+  - name: staging
+    repos:
+      - "*"  # All repos in this CI context target staging
+
+# Smaller budget for CI reports
+token_budget: 4000
+
+# Shorter staleness for CI (daily runs)
+staleness_days: 1

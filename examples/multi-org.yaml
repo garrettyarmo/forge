@@ -1,0 +1,94 @@
+# Multi-Organization Forge Configuration
+#
+# Survey repositories from multiple GitHub organizations and teams.
+# Useful for:
+#   - Companies with multiple GitHub orgs
+#   - Surveying partner/vendor integrations
+#   - Monorepo + multi-repo hybrid architectures
+#
+# Prerequisites:
+#   1. Set your GitHub token with access to all orgs:
+#      export GITHUB_TOKEN=ghp_xxxx
+#   2. Ensure token has appropriate permissions for each org
+#
+# Usage:
+#   forge survey --config examples/multi-org.yaml
+#   forge map --format mermaid > architecture.mmd
+
+repos:
+  # Note: github_org discovers ALL repos in one org.
+  # For multi-org, use explicit github_repos instead.
+
+  # Explicit repos from multiple organizations
+  github_repos:
+    # Primary organization - core services
+    - "primary-org/api-gateway"
+    - "primary-org/user-service"
+    - "primary-org/order-service"
+    - "primary-org/payment-service"
+    - "primary-org/notification-service"
+
+    # Infrastructure organization - shared infrastructure
+    - "infra-org/terraform-modules"
+    - "infra-org/shared-vpc"
+    - "infra-org/monitoring-stack"
+
+    # Platform organization - shared libraries
+    - "platform-org/common-utils"
+    - "platform-org/auth-sdk"
+    - "platform-org/logging-lib"
+
+    # Partner integrations (external vendors)
+    - "partner-vendor/integration-api"
+
+    # Acquired company repos (post-merger)
+    - "acquired-company/legacy-users"
+    - "acquired-company/legacy-orders"
+
+  # Exclude patterns apply to all repos
+  exclude:
+    - "*-deprecated"
+    - "*-archive"
+    - "*-old"
+
+github:
+  token_env: "GITHUB_TOKEN"
+  # Higher concurrency for more repos
+  clone_concurrency: 12
+
+# Map repos to environments by organization pattern
+environments:
+  - name: production
+    aws_account_id: "111111111111"
+    repos:
+      # All primary org repos go to production account
+      - "primary-org/*"
+
+  - name: infrastructure
+    aws_account_id: "222222222222"
+    repos:
+      - "infra-org/*"
+
+  - name: platform
+    aws_account_id: "333333333333"
+    repos:
+      - "platform-org/*"
+
+  - name: partner
+    # Partner repos deploy to their own account
+    aws_account_id: "444444444444"
+    repos:
+      - "partner-vendor/*"
+
+  - name: legacy
+    # Legacy acquired company repos
+    aws_account_id: "555555555555"
+    repos:
+      - "acquired-company/*"
+
+output:
+  graph_path: ".forge/multi-org-graph.json"
+  cache_path: "~/.forge/multi-org-repos"
+
+token_budget: 16000
+staleness_days: 14

@@ -1131,4 +1131,98 @@ environments:
         );
         assert_eq!(config.get_environment_name("test-org/api-dev"), None);
     }
+
+    // Example Configuration Validation Tests
+    // These tests ensure the example YAML files in examples/ are valid
+
+    /// Helper to load example config without validation (since paths don't exist)
+    fn load_example_yaml(content: &str) -> Result<ForgeConfig, ConfigError> {
+        let config: ForgeConfig = serde_yaml::from_str(content)?;
+        Ok(config)
+    }
+
+    #[test]
+    fn test_example_minimal_yaml() {
+        let yaml = include_str!("../../examples/minimal.yaml");
+        let config = load_example_yaml(yaml).expect("minimal.yaml should parse");
+        assert_eq!(config.repos.github_org, Some("my-org".to_string()));
+    }
+
+    #[test]
+    fn test_example_local_only_yaml() {
+        let yaml = include_str!("../../examples/local-only.yaml");
+        let config = load_example_yaml(yaml).expect("local-only.yaml should parse");
+        assert_eq!(config.repos.local_paths.len(), 4);
+        assert!(config.repos.github_org.is_none());
+    }
+
+    #[test]
+    fn test_example_full_featured_yaml() {
+        let yaml = include_str!("../../examples/full-featured.yaml");
+        let config = load_example_yaml(yaml).expect("full-featured.yaml should parse");
+
+        // Check all major sections are present
+        assert_eq!(config.repos.github_org, Some("my-company".to_string()));
+        assert!(!config.repos.github_repos.is_empty());
+        assert!(!config.repos.exclude.is_empty());
+        assert_eq!(config.github.clone_method, CloneMethod::Https);
+        assert_eq!(config.github.clone_concurrency, 8);
+        assert_eq!(config.llm.provider, "claude");
+        assert_eq!(config.token_budget, 8000);
+        assert_eq!(config.staleness_days, 7);
+
+        // Check environments
+        let envs = config.environments.expect("environments should be set");
+        assert_eq!(envs.len(), 3);
+        assert!(envs.iter().any(|e| e.name == "production"));
+        assert!(envs.iter().any(|e| e.name == "staging"));
+        assert!(envs.iter().any(|e| e.name == "development"));
+    }
+
+    #[test]
+    fn test_example_multi_org_yaml() {
+        let yaml = include_str!("../../examples/multi-org.yaml");
+        let config = load_example_yaml(yaml).expect("multi-org.yaml should parse");
+
+        // Should have repos from multiple orgs
+        assert!(config.repos.github_repos.len() >= 10);
+        assert!(
+            config
+                .repos
+                .github_repos
+                .iter()
+                .any(|r| r.starts_with("primary-org/"))
+        );
+        assert!(
+            config
+                .repos
+                .github_repos
+                .iter()
+                .any(|r| r.starts_with("infra-org/"))
+        );
+        assert!(
+            config
+                .repos
+                .github_repos
+                .iter()
+                .any(|r| r.starts_with("platform-org/"))
+        );
+
+        // Check environments for different orgs
+        let envs = config.environments.expect("environments should be set");
+        assert!(envs.len() >= 4);
+    }
+
+    #[test]
+    fn test_example_ci_cd_yaml() {
+        let yaml = include_str!("../../examples/ci-cd.yaml");
+        let config = load_example_yaml(yaml).expect("ci-cd.yaml should parse");
+
+        // CI config uses local paths
+        assert!(!config.repos.local_paths.is_empty());
+        // Shorter staleness for CI
+        assert_eq!(config.staleness_days, 1);
+        // Smaller token budget
+        assert_eq!(config.token_budget, 4000);
+    }
 }

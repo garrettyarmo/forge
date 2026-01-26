@@ -1,0 +1,16 @@
+# Minimal Forge Configuration
+#
+# This is the simplest working configuration for Forge.
+# It discovers all repositories in a GitHub organization.
+#
+# Prerequisites:
+#   1. Set your GitHub token: export GITHUB_TOKEN=ghp_xxxx
+#   2. Run: forge survey
+#
+# Usage:
+#   forge init --org my-org     # Generate this config
+#   forge survey                # Discover ecosystem
+#   forge map                   # View as markdown
+
+repos:
+  github_org: "my-org"
