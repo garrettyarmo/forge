@@ -1172,11 +1172,20 @@ forge-graph = { path = "../forge-graph" }
     - Validation rules reference table
     - Cross-references to other docs (CLI reference, extending parsers, extending LLM providers)
 
-- [ ] **M7-T8**: Write parser extension guide
+- [x] **M7-T8**: Write parser extension guide
   - Step-by-step for adding new language
   - Trait requirements
   - Testing guidelines
   - **Files**: `docs/extending-parsers.md`
+  - **Implementation Notes**:
+    - Created comprehensive `docs/extending-parsers.md` with 500+ lines of documentation
+    - Covers complete step-by-step process: dependencies, parser file, registration, detection, tests
+    - Includes architecture diagram showing ParserRegistry and Parser trait relationships
+    - Documents all 6 Discovery types with code examples
+    - Tree-sitter query tips with syntax examples and processing patterns
+    - Best practices section (conservative discovery, source locations, edge case handling)
+    - Complete checklist for parser submission
+    - Links to existing parser implementations as references
 
 - [ ] **M7-T9**: Write LLM provider extension guide
   - How to add new CLI adapter
