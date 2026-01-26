@@ -1126,11 +1126,21 @@ forge-graph = { path = "../forge-graph" }
     - 5 new tests for output module covering quiet mode and verbosity
     - All 655+ workspace tests passing, clippy clean, formatting verified
 
-- [ ] **M7-T5**: Write README.md
+- [x] **M7-T5**: Write README.md
   - Installation instructions
   - Quick start guide
   - Usage examples
   - **Files**: `README.md`
+  - **Implementation Notes**:
+    - Created comprehensive README.md at project root
+    - Includes: features overview, quick start guide, installation instructions
+    - Documents all commands (init, survey, map) with flags and options
+    - Full configuration reference with example forge.yaml
+    - Environment variables documentation
+    - Examples for common use cases (GitHub org, local repos, filtering)
+    - Language support table with detection patterns
+    - Output format descriptions (Markdown, JSON, Mermaid)
+    - Architecture overview and development commands
 
 - [ ] **M7-T6**: Write CLI reference documentation
   - All commands and flags
