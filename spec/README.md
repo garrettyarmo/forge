@@ -202,8 +202,7 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
   - ✅ M6-T10: --business-context flag (graceful degradation, interrupt-safe)
   - ✅ M6-T11: Interview tests (15 tests for session and persistence)
 
-### In Progress
-- ⏳ **Milestone 7 (Polish)**: Incremental survey, CLI UX, documentation
+- ✅ **Milestone 7 (Polish)**: Complete
   - ✅ M7-T1: Incremental survey (SurveyState, ChangeDetector, git-based change detection)
   - ✅ M7-T2: Staleness indicators (NodeMetadata.is_stale(), staleness_description(), serializer support)
   - ✅ M7-T3: Progress bars (indicatif) and CLI UX improvements
@@ -211,8 +210,15 @@ Forge integrates with LLMs by **shelling out to coding agent CLIs** rather than 
   - ✅ M7-T5: README.md (comprehensive documentation with quick start, examples, configuration)
   - ✅ M7-T6: CLI reference documentation (docs/cli-reference.md)
   - ✅ M7-T7: Configuration reference (docs/configuration.md - full schema, all options with types/defaults)
-  - ⏳ M7-T8: Parser extension guide
-  - ⏳ M7-T9: LLM provider extension guide
-  - ⏳ M7-T10: Example configurations
-  - ⏳ M7-T11: Final integration testing
+  - ✅ M7-T8: Parser extension guide (docs/extending-parsers.md - step-by-step, 500+ lines)
+  - ✅ M7-T9: LLM provider extension guide (docs/extending-llm-providers.md - step-by-step, 500+ lines)
+  - ✅ M7-T10: Example configurations (examples/ - 5 configs: minimal, local-only, full-featured, multi-org, ci-cd)
+  - ✅ M7-T11: Final integration testing (forge-cli/tests/e2e_full_workflow.rs - 13 e2e tests)
+- ✅ **Milestone 8 (LLM Optimization)**: Complete
+  - ✅ M8-T1: Enhanced Terraform parser (deployment metadata, tags, workspace extraction)
+  - ✅ M8-T2: SAM/CloudFormation parser (AWS::Serverless::*, AWS::Lambda::Function, DynamoDB, SQS, SNS, S3)
+  - ✅ M8-T3: Environment and account mapping (forge.yaml environments, --env filter for map)
+  - ✅ M8-T4: LLM instruction generation (code style, testing, deployment commands, gotcha transformation)
+  - ✅ M8-T5: Enhanced JSON output with llm_instructions field
+  - ✅ M8-T6: Integration tests (forge-cli/tests/integration_llm.rs - 7 tests)
 
