@@ -1132,7 +1132,7 @@ impl JavaScriptParser {
                 discoveries.push(Discovery::Import(ImportDiscovery {
                     module: module.to_string(),
                     is_relative: module.starts_with('.'),
-                    imported_items: vec![], // TODO: extract destructured imports
+                    imported_items: self.extract_import_specifiers(tree, node, content),
                     source_file: path.to_string_lossy().to_string(),
                     source_line: node.start_position().row as u32 + 1,
                 }));
@@ -1140,6 +1140,52 @@ impl JavaScriptParser {
         }
 
         discoveries
+    }
+
+    /// Extract named import specifiers from an import statement.
+    fn extract_import_specifiers(
+        &self,
+        _tree: &tree_sitter::Tree,
+        source_node: Node,
+        content: &str,
+    ) -> Vec<String> {
+        let mut items = Vec::new();
+
+        // Walk up to the import_statement and find import_clause
+        if let Some(import_stmt) = source_node.parent() {
+            for i in 0..import_stmt.named_child_count() {
+                if let Some(child) = import_stmt.named_child(i) {
+                    if child.kind() == "import_clause" {
+                        // Check for named_imports
+                        for j in 0..child.named_child_count() {
+                            if let Some(named) = child.named_child(j) {
+                                if named.kind() == "named_imports" {
+                                    // Extract import specifiers
+                                    for k in 0..named.named_child_count() {
+                                        if let Some(spec) = named.named_child(k) {
+                                            if spec.kind() == "import_specifier" {
+                                                if let Some(name) = spec.named_child(0) {
+                                                    if let Ok(text) = name.utf8_text(content.as_bytes()) {
+                                                        items.push(text.to_string());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if named.kind() == "identifier" {
+                                    // Default import
+                                    if let Ok(text) = named.utf8_text(content.as_bytes()) {
+                                        items.push(text.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        items
     }
 
     fn detect_aws_sdk(&self, tree: &tree_sitter::Tree, content: &str, path: &Path) -> Vec<Discovery> {
@@ -1207,7 +1253,7 @@ impl JavaScriptParser {
                 let text = &content[node.byte_range()];
 
                 // Try to extract URL from the call arguments
-                let target = self.extract_url_from_call(node, content)
+                let target = self.extract_url_from_call(&node, content)
                     .unwrap_or_else(|| "unknown".to_string());
 
                 let method = if text.contains("get") || text.contains("GET") {
@@ -1253,7 +1299,11 @@ impl JavaScriptParser {
                     };
 
                     // Try to extract table name from the call
-                    let table_name = self.extract_table_name(node.parent(), content);
+                    let table_name = if let Some(parent) = node.parent() {
+                        self.extract_table_name_from_call(&parent, content)
+                    } else {
+                        None
+                    };
 
                     discoveries.push(Discovery::DatabaseAccess(DatabaseAccessDiscovery {
                         db_type: "dynamodb".to_string(),
@@ -1270,15 +1320,65 @@ impl JavaScriptParser {
         discoveries
     }
 
-    fn extract_url_from_call(&self, _node: tree_sitter::Node, _content: &str) -> Option<String> {
-        // TODO: Implement URL extraction from call arguments
-        // This would involve walking the AST to find string arguments
+    /// Extract URL from HTTP call arguments.
+    fn extract_url_from_call(&self, call_node: &Node, content: &str) -> Option<String> {
+        if let Some(args) = call_node.child_by_field_name("arguments") {
+            if let Some(first_arg) = args.named_child(0) {
+                // Check if first argument is a string literal
+                if first_arg.kind() == "string" {
+                    let text = first_arg.utf8_text(content.as_bytes()).unwrap_or("");
+                    return Some(
+                        text.trim_matches(|c| c == '"' || c == '\'' || c == '`')
+                            .to_string(),
+                    );
+                }
+                // Check if it's a template literal
+                if first_arg.kind() == "template_string" {
+                    let text = first_arg.utf8_text(content.as_bytes()).unwrap_or("");
+                    return Some(text.trim_matches('`').to_string());
+                }
+            }
+        }
         None
     }
 
-    fn extract_table_name(&self, _node: Option<tree_sitter::Node>, _content: &str) -> Option<String> {
-        // TODO: Implement table name extraction from DynamoDB call parameters
-        // Look for { TableName: 'xxx' } pattern in arguments
+    /// Try to extract table name from a DynamoDB call.
+    fn extract_table_name_from_call(&self, call_node: &Node, content: &str) -> Option<String> {
+        // Look for TableName in the arguments
+        if let Some(args) = call_node.child_by_field_name("arguments") {
+            for i in 0..args.named_child_count() {
+                if let Some(arg) = args.named_child(i) {
+                    // Check if it's an object with TableName property
+                    if arg.kind() == "object" {
+                        return self.find_table_name_in_object(arg, content);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Find TableName property in an object literal.
+    fn find_table_name_in_object(&self, obj_node: Node, content: &str) -> Option<String> {
+        for i in 0..obj_node.named_child_count() {
+            if let Some(child) = obj_node.named_child(i) {
+                if child.kind() == "pair" {
+                    if let Some(key) = child.child_by_field_name("key") {
+                        let key_text = key.utf8_text(content.as_bytes()).unwrap_or("");
+                        if key_text == "TableName" {
+                            if let Some(value) = child.child_by_field_name("value") {
+                                let value_text = value.utf8_text(content.as_bytes()).unwrap_or("");
+                                return Some(
+                                    value_text
+                                        .trim_matches(|c| c == '"' || c == '\'' || c == '`')
+                                        .to_string(),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
         None
     }
 }
