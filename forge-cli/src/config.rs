@@ -81,6 +81,14 @@ pub struct ForgeConfig {
     /// Number of days after which a node is considered stale.
     #[serde(default = "default_staleness_days")]
     pub staleness_days: u32,
+
+    /// Environment definitions for mapping repos to deployment contexts.
+    ///
+    /// Each environment can specify repos (by glob pattern) and an optional
+    /// AWS account ID. During survey, the environment context is injected
+    /// into graph nodes. During map, you can filter by environment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environments: Option<Vec<Environment>>,
 }
 
 fn default_token_budget() -> u32 {
@@ -235,6 +243,30 @@ fn default_llm_provider() -> String {
     "claude".to_string()
 }
 
+/// Environment definition for mapping repositories to deployment contexts.
+///
+/// Environments allow you to map repos to specific AWS accounts and deployment
+/// configurations. This helps LLM coding agents understand where code will
+/// be deployed and generate correct deployment commands.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Environment {
+    /// Environment name (e.g., "production", "staging", "development").
+    pub name: String,
+
+    /// AWS account ID for this environment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aws_account_id: Option<String>,
+
+    /// Repository patterns that belong to this environment.
+    /// Supports glob patterns (e.g., "my-org/*-prod", "my-org/api-*").
+    #[serde(default)]
+    pub repos: Vec<String>,
+
+    /// If true, this environment is local-only (not deployed to AWS).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_only: Option<bool>,
+}
+
 impl ForgeConfig {
     /// Load configuration from the default path (`./forge.yaml`).
     pub fn load_default() -> Result<Self, ConfigError> {
@@ -277,6 +309,7 @@ impl ForgeConfig {
             llm: LLMConfig::default(),
             token_budget: default_token_budget(),
             staleness_days: default_staleness_days(),
+            environments: None,
         }
     }
 
@@ -444,6 +477,55 @@ impl ForgeConfig {
             .exclude
             .iter()
             .any(|l| l.eq_ignore_ascii_case(language))
+    }
+
+    /// Resolve which environment a repository belongs to.
+    ///
+    /// Returns the first matching environment based on glob pattern matching.
+    /// If no environment matches, returns None.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config = ForgeConfig::load_from_path(path)?;
+    /// if let Some(env) = config.resolve_environment("my-org/api-production") {
+    ///     println!("Repo is in environment: {}", env.name);
+    ///     if let Some(account) = &env.aws_account_id {
+    ///         println!("AWS Account: {}", account);
+    ///     }
+    /// }
+    /// ```
+    pub fn resolve_environment(&self, repo_name: &str) -> Option<&Environment> {
+        let envs = self.environments.as_ref()?;
+
+        for env in envs {
+            for pattern in &env.repos {
+                if let Ok(glob_pattern) = glob::Pattern::new(pattern) {
+                    if glob_pattern.matches(repo_name) {
+                        return Some(env);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Get the AWS account ID for a given repository name.
+    ///
+    /// Returns None if the repo doesn't match any environment or if the
+    /// matched environment doesn't have an AWS account ID.
+    pub fn get_aws_account_id(&self, repo_name: &str) -> Option<&str> {
+        self.resolve_environment(repo_name)
+            .and_then(|env| env.aws_account_id.as_deref())
+    }
+
+    /// Get the environment name for a given repository name.
+    ///
+    /// Returns None if the repo doesn't match any environment.
+    pub fn get_environment_name(&self, repo_name: &str) -> Option<&str> {
+        self.resolve_environment(repo_name)
+            .map(|env| env.name.as_str())
     }
 }
 
@@ -614,6 +696,7 @@ repos:
             llm: LLMConfig::default(),
             token_budget: 8000,
             staleness_days: default_staleness_days(),
+            environments: None,
         };
 
         // Test that the structure stores values correctly (non-env-var test)
@@ -641,6 +724,7 @@ repos:
             llm: LLMConfig::default(),
             token_budget: 8000,
             staleness_days: default_staleness_days(),
+            environments: None,
         };
 
         assert_eq!(config.token_budget, 8000);
@@ -665,6 +749,7 @@ repos:
             llm: LLMConfig::default(),
             token_budget: 8000,
             staleness_days: default_staleness_days(),
+            environments: None,
         };
 
         assert!(config.is_excluded("old-service-deprecated"));
@@ -689,6 +774,7 @@ repos:
             llm: LLMConfig::default(),
             token_budget: 8000,
             staleness_days: default_staleness_days(),
+            environments: None,
         };
 
         assert!(config.is_language_excluded("terraform"));
@@ -733,6 +819,7 @@ repos:
         assert_eq!(config.token_budget, 8000);
         assert_eq!(config.staleness_days, 7);
         assert!(config.languages.exclude.is_empty());
+        assert!(config.environments.is_none()); // Environments default to None
     }
 
     #[test]
@@ -755,5 +842,293 @@ output:
             "Path should be expanded: {:?}",
             config.output.cache_path
         );
+    }
+
+    // Environment Tests
+
+    #[test]
+    fn test_environment_config_loading() {
+        let yaml = r#"
+repos:
+  github_org: "test-org"
+
+environments:
+  - name: production
+    aws_account_id: "123456789012"
+    repos:
+      - "test-org/api-*"
+      - "test-org/user-service"
+
+  - name: staging
+    aws_account_id: "987654321098"
+    repos:
+      - "test-org/*-staging"
+
+  - name: development
+    repos:
+      - "test-org/*-dev"
+    local_only: true
+"#;
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("forge.yaml");
+        std::fs::write(&path, yaml).unwrap();
+
+        let config = ForgeConfig::load_from_path(&path).unwrap();
+
+        let envs = config
+            .environments
+            .as_ref()
+            .expect("environments should be set");
+        assert_eq!(envs.len(), 3);
+
+        // Check production environment
+        let prod = &envs[0];
+        assert_eq!(prod.name, "production");
+        assert_eq!(prod.aws_account_id, Some("123456789012".to_string()));
+        assert_eq!(prod.repos.len(), 2);
+        assert!(prod.local_only.is_none());
+
+        // Check staging environment
+        let staging = &envs[1];
+        assert_eq!(staging.name, "staging");
+        assert_eq!(staging.aws_account_id, Some("987654321098".to_string()));
+
+        // Check development environment
+        let dev = &envs[2];
+        assert_eq!(dev.name, "development");
+        assert!(dev.aws_account_id.is_none());
+        assert_eq!(dev.local_only, Some(true));
+    }
+
+    #[test]
+    fn test_resolve_environment_exact_match() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: Some(vec![Environment {
+                name: "production".to_string(),
+                aws_account_id: Some("123456789012".to_string()),
+                repos: vec!["test-org/user-service".to_string()],
+                local_only: None,
+            }]),
+        };
+
+        let env = config.resolve_environment("test-org/user-service");
+        assert!(env.is_some());
+        assert_eq!(env.unwrap().name, "production");
+    }
+
+    #[test]
+    fn test_resolve_environment_glob_pattern() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: Some(vec![Environment {
+                name: "production".to_string(),
+                aws_account_id: Some("123456789012".to_string()),
+                repos: vec!["test-org/api-*".to_string()],
+                local_only: None,
+            }]),
+        };
+
+        // Matches the pattern
+        let env = config.resolve_environment("test-org/api-gateway");
+        assert!(env.is_some());
+        assert_eq!(env.unwrap().name, "production");
+
+        let env = config.resolve_environment("test-org/api-users");
+        assert!(env.is_some());
+        assert_eq!(env.unwrap().name, "production");
+
+        // Does not match
+        let env = config.resolve_environment("test-org/order-service");
+        assert!(env.is_none());
+    }
+
+    #[test]
+    fn test_resolve_environment_first_match_wins() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: Some(vec![
+                Environment {
+                    name: "production".to_string(),
+                    aws_account_id: Some("111".to_string()),
+                    repos: vec!["test-org/api-*".to_string()],
+                    local_only: None,
+                },
+                Environment {
+                    name: "staging".to_string(),
+                    aws_account_id: Some("222".to_string()),
+                    repos: vec!["test-org/*".to_string()], // Also matches api-*
+                    local_only: None,
+                },
+            ]),
+        };
+
+        // First matching environment wins (production, not staging)
+        let env = config.resolve_environment("test-org/api-gateway");
+        assert!(env.is_some());
+        assert_eq!(env.unwrap().name, "production");
+
+        // This matches staging only
+        let env = config.resolve_environment("test-org/order-service");
+        assert!(env.is_some());
+        assert_eq!(env.unwrap().name, "staging");
+    }
+
+    #[test]
+    fn test_resolve_environment_no_match() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: Some(vec![Environment {
+                name: "production".to_string(),
+                aws_account_id: Some("123".to_string()),
+                repos: vec!["other-org/*".to_string()],
+                local_only: None,
+            }]),
+        };
+
+        // No environment matches
+        let env = config.resolve_environment("test-org/some-service");
+        assert!(env.is_none());
+    }
+
+    #[test]
+    fn test_resolve_environment_no_environments_configured() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: None,
+        };
+
+        // No environments configured
+        let env = config.resolve_environment("test-org/some-service");
+        assert!(env.is_none());
+    }
+
+    #[test]
+    fn test_get_aws_account_id() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: Some(vec![
+                Environment {
+                    name: "production".to_string(),
+                    aws_account_id: Some("123456789012".to_string()),
+                    repos: vec!["test-org/api-*".to_string()],
+                    local_only: None,
+                },
+                Environment {
+                    name: "development".to_string(),
+                    aws_account_id: None, // No AWS account
+                    repos: vec!["test-org/*-dev".to_string()],
+                    local_only: Some(true),
+                },
+            ]),
+        };
+
+        // Matches production with AWS account
+        assert_eq!(
+            config.get_aws_account_id("test-org/api-gateway"),
+            Some("123456789012")
+        );
+
+        // Matches development without AWS account
+        assert_eq!(config.get_aws_account_id("test-org/my-dev"), None);
+
+        // No match
+        assert_eq!(config.get_aws_account_id("test-org/other-service"), None);
+    }
+
+    #[test]
+    fn test_get_environment_name() {
+        let config = ForgeConfig {
+            repos: RepoConfig {
+                github_org: Some("test-org".to_string()),
+                github_repos: vec![],
+                local_paths: vec![],
+                exclude: vec![],
+            },
+            github: GitHubConfig::default(),
+            languages: LanguageConfig::default(),
+            output: OutputConfig::default(),
+            llm: LLMConfig::default(),
+            token_budget: 8000,
+            staleness_days: default_staleness_days(),
+            environments: Some(vec![Environment {
+                name: "production".to_string(),
+                aws_account_id: Some("123".to_string()),
+                repos: vec!["test-org/*-prod".to_string()],
+                local_only: None,
+            }]),
+        };
+
+        assert_eq!(
+            config.get_environment_name("test-org/api-prod"),
+            Some("production")
+        );
+        assert_eq!(config.get_environment_name("test-org/api-dev"), None);
     }
 }

@@ -8,7 +8,7 @@
 use crate::config::ForgeConfig;
 use crate::output;
 use crate::serializers::{JsonSerializer, MarkdownSerializer, MermaidSerializer, QueryInfo};
-use forge_graph::{ForgeGraph, NodeId, NodeType, SubgraphConfig};
+use forge_graph::{AttributeValue, ForgeGraph, NodeId, NodeType, SubgraphConfig};
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -23,6 +23,8 @@ pub struct MapOptions {
     pub format: String,
     /// Filter to specific services
     pub service: Option<String>,
+    /// Filter to specific environment
+    pub env: Option<String>,
     /// Token budget limit
     pub budget: Option<u32>,
     /// Output file (None = stdout)
@@ -46,6 +48,9 @@ pub enum MapError {
 
     #[error("Service not found: {0}")]
     ServiceNotFound(String),
+
+    #[error("No nodes found in environment: {0}")]
+    EnvironmentNotFound(String),
 }
 
 /// Output format for the map command.
@@ -97,17 +102,30 @@ pub fn run_map(options: MapOptions) -> Result<(), MapError> {
     let graph = ForgeGraph::load_from_file(&graph_path)
         .map_err(|e| MapError::GraphLoadError(format!("{}: {}", graph_path.display(), e)))?;
 
+    // Apply environment filter if specified
+    let filtered_graph = if let Some(env_name) = &options.env {
+        filter_by_environment(&graph, env_name)?
+    } else {
+        graph
+    };
+
     // Parse format
     let format = OutputFormat::from_str(&options.format)?;
 
     // Generate output
     let output = if let Some(services) = &options.service {
         // Extract subgraph for specified services
-        let seed_ids = parse_service_filter(services, &graph)?;
-        serialize_subgraph(&graph, &seed_ids, format, options.budget, staleness_days)?
+        let seed_ids = parse_service_filter(services, &filtered_graph)?;
+        serialize_subgraph(
+            &filtered_graph,
+            &seed_ids,
+            format,
+            options.budget,
+            staleness_days,
+        )?
     } else {
         // Serialize entire graph
-        serialize_graph(&graph, format, options.budget, staleness_days)?
+        serialize_graph(&filtered_graph, format, options.budget, staleness_days)?
     };
 
     // Write output
@@ -121,6 +139,46 @@ pub fn run_map(options: MapOptions) -> Result<(), MapError> {
     }
 
     Ok(())
+}
+
+/// Filter graph to only include nodes with the specified environment attribute.
+///
+/// Returns a new graph containing only nodes where `environment` attribute matches
+/// the given value, plus all edges between those nodes.
+fn filter_by_environment(graph: &ForgeGraph, env_name: &str) -> Result<ForgeGraph, MapError> {
+    let mut filtered = ForgeGraph::new();
+    let mut matched_ids = std::collections::HashSet::new();
+
+    // First pass: add matching nodes
+    for node in graph.nodes() {
+        let matches = node
+            .attributes
+            .get("environment")
+            .and_then(|v| match v {
+                AttributeValue::String(s) => Some(s.eq_ignore_ascii_case(env_name)),
+                _ => None,
+            })
+            .unwrap_or(false);
+
+        if matches {
+            matched_ids.insert(node.id.clone());
+            filtered.add_node(node.clone()).ok();
+        }
+    }
+
+    // Check if we found any nodes
+    if matched_ids.is_empty() {
+        return Err(MapError::EnvironmentNotFound(env_name.to_string()));
+    }
+
+    // Second pass: add edges between matching nodes
+    for edge in graph.edges() {
+        if matched_ids.contains(&edge.source) && matched_ids.contains(&edge.target) {
+            filtered.add_edge(edge.clone()).ok();
+        }
+    }
+
+    Ok(filtered)
 }
 
 /// Parse a comma-separated service filter into node IDs.
@@ -367,6 +425,7 @@ mod tests {
             input: Some(graph_path.to_string_lossy().to_string()),
             format: "markdown".to_string(),
             service: None,
+            env: None,
             budget: None,
             output: Some(output_path.to_string_lossy().to_string()),
         };
@@ -397,6 +456,7 @@ mod tests {
             input: Some(graph_path.to_string_lossy().to_string()),
             format: "markdown".to_string(),
             service: Some("User API".to_string()),
+            env: None,
             budget: None,
             output: Some(output_path.to_string_lossy().to_string()),
         };
@@ -468,6 +528,7 @@ mod tests {
             input: Some(graph_path.to_string_lossy().to_string()),
             format: "json".to_string(),
             service: None,
+            env: None,
             budget: None,
             output: Some(output_path.to_string_lossy().to_string()),
         };
@@ -499,6 +560,7 @@ mod tests {
             input: Some(graph_path.to_string_lossy().to_string()),
             format: "json".to_string(),
             service: Some("User API".to_string()),
+            env: None,
             budget: None,
             output: Some(output_path.to_string_lossy().to_string()),
         };
@@ -576,6 +638,7 @@ mod tests {
             input: Some(graph_path.to_string_lossy().to_string()),
             format: "mermaid".to_string(),
             service: None,
+            env: None,
             budget: None,
             output: Some(output_path.to_string_lossy().to_string()),
         };
@@ -607,6 +670,7 @@ mod tests {
             input: Some(graph_path.to_string_lossy().to_string()),
             format: "mmd".to_string(), // Test mmd alias
             service: Some("User API".to_string()),
+            env: None,
             budget: None,
             output: Some(output_path.to_string_lossy().to_string()),
         };
@@ -616,5 +680,176 @@ mod tests {
         let content = std::fs::read_to_string(&output_path).unwrap();
         assert!(content.starts_with("flowchart LR"));
         assert!(content.contains("service_ns_user_api"));
+    }
+
+    #[test]
+    fn test_filter_by_environment() {
+        let mut graph = ForgeGraph::new();
+
+        // Add services with environment attributes
+        let prod_api = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "prod-api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("Production API")
+            .attribute("language", "typescript")
+            .attribute("environment", "production")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        let staging_api = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "staging-api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("Staging API")
+            .attribute("language", "typescript")
+            .attribute("environment", "staging")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        // Database in production
+        let prod_db = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Database, "ns", "prod-users").unwrap())
+            .node_type(NodeType::Database)
+            .display_name("Prod Users DB")
+            .attribute("db_type", "dynamodb")
+            .attribute("environment", "production")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        let prod_api_id = prod_api.id.clone();
+        let staging_api_id = staging_api.id.clone();
+        let prod_db_id = prod_db.id.clone();
+
+        graph.add_node(prod_api).unwrap();
+        graph.add_node(staging_api).unwrap();
+        graph.add_node(prod_db).unwrap();
+
+        // Add edge in production
+        graph
+            .add_edge(Edge::new(prod_api_id.clone(), prod_db_id.clone(), EdgeType::Reads).unwrap())
+            .unwrap();
+
+        // Add edge that crosses environments (should be excluded)
+        graph
+            .add_edge(
+                Edge::new(staging_api_id.clone(), prod_db_id.clone(), EdgeType::Reads).unwrap(),
+            )
+            .unwrap();
+
+        // Filter to production
+        let filtered = filter_by_environment(&graph, "production").unwrap();
+
+        // Should only have production nodes
+        assert_eq!(filtered.node_count(), 2); // prod-api + prod-db
+        assert!(filtered.get_node(&prod_api_id).is_some());
+        assert!(filtered.get_node(&prod_db_id).is_some());
+        assert!(filtered.get_node(&staging_api_id).is_none());
+
+        // Should only have edge within production
+        assert_eq!(filtered.edge_count(), 1);
+    }
+
+    #[test]
+    fn test_filter_by_environment_case_insensitive() {
+        let mut graph = ForgeGraph::new();
+
+        let api = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("API")
+            .attribute("environment", "Production") // Capital P
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(api).unwrap();
+
+        // Should match case-insensitively
+        let filtered = filter_by_environment(&graph, "production").unwrap();
+        assert_eq!(filtered.node_count(), 1);
+
+        let filtered = filter_by_environment(&graph, "PRODUCTION").unwrap();
+        assert_eq!(filtered.node_count(), 1);
+    }
+
+    #[test]
+    fn test_filter_by_environment_not_found() {
+        let mut graph = ForgeGraph::new();
+
+        let api = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("API")
+            .attribute("environment", "production")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(api).unwrap();
+
+        // Should error when no nodes match
+        let result = filter_by_environment(&graph, "development");
+        assert!(matches!(result, Err(MapError::EnvironmentNotFound(_))));
+    }
+
+    #[test]
+    fn test_run_map_with_env_filter() {
+        let mut graph = ForgeGraph::new();
+
+        // Add production service
+        let prod_api = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "prod-api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("Production API")
+            .attribute("language", "typescript")
+            .attribute("environment", "production")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        // Add staging service
+        let staging_api = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "staging-api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("Staging API")
+            .attribute("language", "typescript")
+            .attribute("environment", "staging")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(prod_api).unwrap();
+        graph.add_node(staging_api).unwrap();
+
+        let temp_dir = tempdir().unwrap();
+
+        // Save graph
+        let graph_path = temp_dir.path().join("graph.json");
+        graph.save_to_file(&graph_path).unwrap();
+
+        // Output path
+        let output_path = temp_dir.path().join("output.md");
+
+        let options = MapOptions {
+            config: None,
+            input: Some(graph_path.to_string_lossy().to_string()),
+            format: "markdown".to_string(),
+            service: None,
+            env: Some("production".to_string()),
+            budget: None,
+            output: Some(output_path.to_string_lossy().to_string()),
+        };
+
+        run_map(options).unwrap();
+
+        let content = std::fs::read_to_string(&output_path).unwrap();
+
+        // Should contain production service
+        assert!(content.contains("Production API"));
+
+        // Should NOT contain staging service
+        assert!(!content.contains("Staging API"));
     }
 }

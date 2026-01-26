@@ -117,6 +117,10 @@ enum Commands {
         #[arg(long, short)]
         service: Option<String>,
 
+        /// Filter to specific environment (e.g., production, staging)
+        #[arg(long, short = 'e')]
+        env: Option<String>,
+
         /// Token budget limit
         #[arg(long, short)]
         budget: Option<u32>,
@@ -166,6 +170,7 @@ fn main() {
             input,
             format,
             service,
+            env,
             budget,
             output,
         } => {
@@ -174,6 +179,7 @@ fn main() {
                 input,
                 format,
                 service,
+                env,
                 budget,
                 output,
             };

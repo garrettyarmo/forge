@@ -1223,12 +1223,28 @@ console = "0.15"
     - Added CloudFormation detection in detection.rs
     - Added serde_yaml dependency to forge-survey/Cargo.toml
 
-- [ ] **M8-T3**: Environment and account mapping
+- [x] **M8-T3**: Environment and account mapping
   - Extend forge.yaml with environment definitions
   - Map repos to environments (dev/staging/prod)
   - Inject environment attributes during graph building
   - Add --env filter to map command
   - **Files**: `forge-cli/src/config.rs`, `forge-survey/src/graph_builder.rs`, `forge-cli/src/commands/map.rs`
+  - **Implementation Notes**:
+    - Added `Environment` struct to config.rs with: name, aws_account_id (optional), repos (glob patterns), local_only (optional)
+    - Added `environments: Option<Vec<Environment>>` field to `ForgeConfig`
+    - Implemented `resolve_environment()` method for glob-based repo-to-environment matching
+    - Implemented `get_aws_account_id()` and `get_environment_name()` helper methods
+    - Updated `GraphBuilder` with `set_environment()` and `clear_environment()` methods
+    - Environment context (`environment`, `aws_account_id` attributes) injected into all node types:
+      - Services, Databases, Queues, CloudResources
+      - Respects deployment_metadata.environment if already set (doesn't override)
+    - Added `--env` flag to `forge map` command for environment-based filtering
+    - Implemented `filter_by_environment()` function with case-insensitive matching
+    - Comprehensive test coverage:
+      - 8 new config tests for environment loading and resolution
+      - 4 new GraphBuilder tests for environment injection
+      - 5 new map command tests for environment filtering
+    - All 573+ workspace tests passing
 
 - [ ] **M8-T4**: LLM instruction generation module
   - Convert business context gotchas to DO NOT statements
@@ -1261,13 +1277,13 @@ serde_yaml = "0.9"  # Already exists, for SAM/CloudFormation parsing
 
 ### Acceptance Criteria
 
-- [ ] Terraform resources include deployment_method, stack_name, workspace attributes
-- [ ] SAM templates parsed and resources extracted correctly
-- [ ] forge.yaml supports environment definitions
-- [ ] forge map --env production filters correctly
+- [x] Terraform resources include deployment_method, stack_name, workspace attributes
+- [x] SAM templates parsed and resources extracted correctly
+- [x] forge.yaml supports environment definitions
+- [x] forge map --env production filters correctly
 - [ ] JSON output includes llm_instructions field
 - [ ] LLM instructions include code_style, testing, deployment, gotchas sections
-- [ ] All tests pass (>540 tests total)
+- [x] All tests pass (>573 tests total)
 
 ---
 

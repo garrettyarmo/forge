@@ -57,6 +57,14 @@ pub struct GraphBuilder {
 
     /// Current commit SHA being processed
     current_commit: Option<String>,
+
+    /// Current environment name (e.g., "production", "staging")
+    /// Injected from forge.yaml environment mapping
+    current_environment: Option<String>,
+
+    /// Current AWS account ID for this environment
+    /// Injected from forge.yaml environment mapping
+    current_aws_account_id: Option<String>,
 }
 
 impl GraphBuilder {
@@ -68,6 +76,8 @@ impl GraphBuilder {
             resource_map: HashMap::new(),
             current_repo: None,
             current_commit: None,
+            current_environment: None,
+            current_aws_account_id: None,
         }
     }
 
@@ -82,6 +92,8 @@ impl GraphBuilder {
             resource_map: HashMap::new(),
             current_repo: None,
             current_commit: None,
+            current_environment: None,
+            current_aws_account_id: None,
         };
 
         // Rebuild indexes from existing graph
@@ -111,6 +123,37 @@ impl GraphBuilder {
     pub fn set_repo_context(&mut self, repo_name: &str, commit_sha: Option<&str>) {
         self.current_repo = Some(repo_name.to_string());
         self.current_commit = commit_sha.map(|s| s.to_string());
+    }
+
+    /// Set the environment context for subsequent discoveries.
+    ///
+    /// This context is used to inject `environment` and `aws_account_id`
+    /// attributes into graph nodes. Call this after `set_repo_context()`
+    /// and before processing discoveries.
+    ///
+    /// # Arguments
+    ///
+    /// * `env_name` - Environment name (e.g., "production", "staging")
+    /// * `aws_account_id` - Optional AWS account ID for this environment
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// builder.set_repo_context("my-org/api-service", Some("abc123"));
+    /// builder.set_environment("production", Some("123456789012"));
+    /// // Now all discoveries will have environment and aws_account_id attributes
+    /// ```
+    pub fn set_environment(&mut self, env_name: &str, aws_account_id: Option<&str>) {
+        self.current_environment = Some(env_name.to_string());
+        self.current_aws_account_id = aws_account_id.map(|s| s.to_string());
+    }
+
+    /// Clear the environment context.
+    ///
+    /// Call this when switching to a repo that doesn't belong to any environment.
+    pub fn clear_environment(&mut self) {
+        self.current_environment = None;
+        self.current_aws_account_id = None;
     }
 
     /// Process a service discovery and return its NodeId.
@@ -193,6 +236,22 @@ impl GraphBuilder {
                 node.attributes
                     .insert("tags".to_string(), AttributeValue::Map(tags_map));
             }
+        }
+
+        // Inject environment context from forge.yaml if not already set by deployment_metadata
+        if !node.attributes.contains_key("environment") {
+            if let Some(env) = &self.current_environment {
+                node.attributes.insert(
+                    "environment".to_string(),
+                    AttributeValue::String(env.clone()),
+                );
+            }
+        }
+        if let Some(account_id) = &self.current_aws_account_id {
+            node.attributes.insert(
+                "aws_account_id".to_string(),
+                AttributeValue::String(account_id.clone()),
+            );
         }
 
         self.graph.upsert_node(node);
@@ -351,6 +410,22 @@ impl GraphBuilder {
                 }
             }
 
+            // Inject environment context from forge.yaml if not already set
+            if !node.attributes.contains_key("environment") {
+                if let Some(env) = &self.current_environment {
+                    node.attributes.insert(
+                        "environment".to_string(),
+                        AttributeValue::String(env.clone()),
+                    );
+                }
+            }
+            if let Some(account_id) = &self.current_aws_account_id {
+                node.attributes.insert(
+                    "aws_account_id".to_string(),
+                    AttributeValue::String(account_id.clone()),
+                );
+            }
+
             self.graph.upsert_node(node);
             self.resource_map.insert(db_name, id.clone());
             id
@@ -443,6 +518,22 @@ impl GraphBuilder {
                 }
             }
 
+            // Inject environment context from forge.yaml if not already set
+            if !node.attributes.contains_key("environment") {
+                if let Some(env) = &self.current_environment {
+                    node.attributes.insert(
+                        "environment".to_string(),
+                        AttributeValue::String(env.clone()),
+                    );
+                }
+            }
+            if let Some(account_id) = &self.current_aws_account_id {
+                node.attributes.insert(
+                    "aws_account_id".to_string(),
+                    AttributeValue::String(account_id.clone()),
+                );
+            }
+
             self.graph.upsert_node(node);
             self.resource_map.insert(queue_name, id.clone());
             id
@@ -519,6 +610,22 @@ impl GraphBuilder {
                         AttributeValue::String(stack_name.clone()),
                     );
                 }
+            }
+
+            // Inject environment context from forge.yaml if not already set
+            if !node.attributes.contains_key("environment") {
+                if let Some(env) = &self.current_environment {
+                    node.attributes.insert(
+                        "environment".to_string(),
+                        AttributeValue::String(env.clone()),
+                    );
+                }
+            }
+            if let Some(account_id) = &self.current_aws_account_id {
+                node.attributes.insert(
+                    "aws_account_id".to_string(),
+                    AttributeValue::String(account_id.clone()),
+                );
             }
 
             self.graph.upsert_node(node);
@@ -737,5 +844,151 @@ mod tests {
         assert_eq!(builder.graph().node_count(), 2);
         // Should have one edge (service -> database)
         assert_eq!(builder.graph().edge_count(), 1);
+    }
+
+    #[test]
+    fn test_set_environment_injects_attributes() {
+        let mut builder = GraphBuilder::new();
+        builder.set_repo_context("test-org/test-repo", None);
+        builder.set_environment("production", Some("123456789012"));
+
+        let service_discovery = ServiceDiscovery {
+            name: "user-service".to_string(),
+            language: "typescript".to_string(),
+            entry_point: "index.ts".to_string(),
+            framework: None,
+            source_file: "package.json".to_string(),
+            source_line: 1,
+            deployment_metadata: None,
+        };
+
+        let service_id = builder.add_service(service_discovery);
+
+        let node = builder.graph().get_node(&service_id).unwrap();
+
+        // Check environment attribute was injected
+        assert_eq!(
+            node.attributes.get("environment"),
+            Some(&AttributeValue::String("production".to_string()))
+        );
+
+        // Check AWS account ID was injected
+        assert_eq!(
+            node.attributes.get("aws_account_id"),
+            Some(&AttributeValue::String("123456789012".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_environment_does_not_override_deployment_metadata() {
+        let mut builder = GraphBuilder::new();
+        builder.set_repo_context("test-org/test-repo", None);
+        builder.set_environment("production", Some("123456789012"));
+
+        // Service discovery with existing deployment metadata environment
+        let service_discovery = ServiceDiscovery {
+            name: "user-service".to_string(),
+            language: "typescript".to_string(),
+            entry_point: "index.ts".to_string(),
+            framework: None,
+            source_file: "package.json".to_string(),
+            source_line: 1,
+            deployment_metadata: Some(crate::parser::DeploymentMetadata {
+                deployment_method: "terraform".to_string(),
+                terraform_workspace: Some("staging".to_string()),
+                environment: Some("staging".to_string()), // This should be preserved
+                stack_name: None,
+                tags: HashMap::new(),
+            }),
+        };
+
+        let service_id = builder.add_service(service_discovery);
+
+        let node = builder.graph().get_node(&service_id).unwrap();
+
+        // Environment from deployment_metadata should be preserved, not overwritten
+        assert_eq!(
+            node.attributes.get("environment"),
+            Some(&AttributeValue::String("staging".to_string()))
+        );
+
+        // AWS account ID should still be injected
+        assert_eq!(
+            node.attributes.get("aws_account_id"),
+            Some(&AttributeValue::String("123456789012".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_clear_environment() {
+        let mut builder = GraphBuilder::new();
+        builder.set_repo_context("test-org/test-repo", None);
+        builder.set_environment("production", Some("123456789012"));
+
+        // Clear environment
+        builder.clear_environment();
+
+        let service_discovery = ServiceDiscovery {
+            name: "user-service".to_string(),
+            language: "typescript".to_string(),
+            entry_point: "index.ts".to_string(),
+            framework: None,
+            source_file: "package.json".to_string(),
+            source_line: 1,
+            deployment_metadata: None,
+        };
+
+        let service_id = builder.add_service(service_discovery);
+
+        let node = builder.graph().get_node(&service_id).unwrap();
+
+        // No environment attribute should be set
+        assert!(node.attributes.get("environment").is_none());
+        assert!(node.attributes.get("aws_account_id").is_none());
+    }
+
+    #[test]
+    fn test_environment_injected_into_database() {
+        let mut builder = GraphBuilder::new();
+        builder.set_repo_context("test-org/test-repo", None);
+        builder.set_environment("production", Some("123456789012"));
+
+        let service_discovery = ServiceDiscovery {
+            name: "user-service".to_string(),
+            language: "typescript".to_string(),
+            entry_point: "index.ts".to_string(),
+            framework: None,
+            source_file: "package.json".to_string(),
+            source_line: 1,
+            deployment_metadata: None,
+        };
+
+        let service_id = builder.add_service(service_discovery);
+
+        let db_discovery = DatabaseAccessDiscovery {
+            db_type: "dynamodb".to_string(),
+            table_name: Some("users-table".to_string()),
+            operation: DatabaseOperation::Read,
+            detection_method: "aws-sdk".to_string(),
+            source_file: "src/db.ts".to_string(),
+            source_line: 42,
+            deployment_metadata: None,
+        };
+
+        builder.add_database_access(&service_id, db_discovery);
+
+        // Find the database node
+        let db_id = NodeId::new(NodeType::Database, "test-org/test-repo", "users-table").unwrap();
+        let db_node = builder.graph().get_node(&db_id).unwrap();
+
+        // Check environment was injected
+        assert_eq!(
+            db_node.attributes.get("environment"),
+            Some(&AttributeValue::String("production".to_string()))
+        );
+        assert_eq!(
+            db_node.attributes.get("aws_account_id"),
+            Some(&AttributeValue::String("123456789012".to_string()))
+        );
     }
 }
