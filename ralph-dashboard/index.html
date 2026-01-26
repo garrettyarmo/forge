@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ralph Mission Control</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border-color: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-yellow: #d29922;
+            --accent-red: #f85149;
+            --accent-purple: #a371f7;
+            --accent-cyan: #39c5cf;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .logo h1 {
+            font-size: 24px;
+            font-weight: 600;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo p {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .status-panel {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .status-item {
+            text-align: center;
+            padding: 12px 20px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-item .label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .status-item .value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .status-item.running .value { color: var(--accent-green); }
+        .status-item.warning .value { color: var(--accent-yellow); }
+        .status-item.error .value { color: var(--accent-red); }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr 350px;
+            gap: 20px;
+            height: calc(100vh - 180px);
+        }
+
+        /* Panels */
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-tertiary);
+        }
+
+        .panel-header h2 {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header h2::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        /* Activity Timeline */
+        .timeline-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border-left: 3px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .timeline-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .timeline-item.iteration { border-left-color: var(--accent-blue); }
+        .timeline-item.tool-use { border-left-color: var(--accent-purple); }
+        .timeline-item.result { border-left-color: var(--accent-green); }
+        .timeline-item.error { border-left-color: var(--accent-red); }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .timeline-type {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .timeline-time {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .timeline-content {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Message Feed */
+        .message {
+            padding: 16px;
+            margin-bottom: 12px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .message.assistant {
+            border-left: 3px solid var(--accent-cyan);
+        }
+
+        .message.user {
+            border-left: 3px solid var(--accent-yellow);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-role {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .message.assistant .message-role { color: var(--accent-cyan); }
+        .message.user .message-role { color: var(--accent-yellow); }
+
+        .message-id {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .message-content {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        .message-content pre {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            overflow-x: auto;
+            font-size: 11px;
+        }
+
+        /* Tool Use Card */
+        .tool-card {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+
+        .tool-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-purple);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tool-name::before {
+            content: '>';
+            color: var(--accent-green);
+        }
+
+        .tool-input {
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            padding: 8px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        /* Stats Panel */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 12px;
+        }
+
+        .stat-card {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-blue);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Usage Meters */
+        .usage-section {
+            padding: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .usage-section h3 {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .usage-bar {
+            margin-bottom: 12px;
+        }
+
+        .usage-bar .label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+
+        .usage-bar .bar {
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .usage-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* Cost Card */
+        .cost-card {
+            background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-primary));
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .cost-value {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .cost-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Connection Status */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-primary);
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        .connection-status.disconnected .connection-dot {
+            background: var(--accent-red);
+            animation: none;
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* Log Selector */
+        .log-selector {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .log-selector select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        .log-selector select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🚀</div>
+                <div>
+                    <h1>RALPH MISSION CONTROL</h1>
+                    <p>Autonomous Agent Monitoring Dashboard</p>
+                </div>
+            </div>
+            <div class="status-panel">
+                <div class="status-item" id="status-run">
+                    <div class="label">Status</div>
+                    <div class="value">--</div>
+                </div>
+                <div class="status-item" id="status-iteration">
+                    <div class="label">Iteration</div>
+                    <div class="value">-/-</div>
+                </div>
+                <div class="status-item" id="status-turns">
+                    <div class="label">API Turns</div>
+                    <div class="value">0</div>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <div class="connection-dot"></div>
+                    <span>Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <!-- Left Panel: Activity Timeline -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Activity Timeline</h2>
+                </div>
+                <div class="log-selector">
+                    <select id="log-select">
+                        <option value="current">Live - Current Run</option>
+                    </select>
+                </div>
+                <div class="panel-content" id="timeline">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📡</div>
+                        <div>Waiting for events...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel: Message Feed -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Agent Messages</h2>
+                    <span id="message-count" style="font-size: 12px; color: var(--text-muted);">0 messages</span>
+                </div>
+                <div class="panel-content" id="messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <div>No messages yet</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Stats & Cost -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Run Statistics</h2>
+                </div>
+                <div class="panel-content" style="padding: 0;">
+                    <div class="cost-card">
+                        <div class="cost-label">Total Cost</div>
+                        <div class="cost-value" id="total-cost">$0.00</div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="input-tokens">0</div>
+                            <div class="stat-label">Input Tokens</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="output-tokens">0</div>
+                            <div class="stat-label">Output Tokens</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="cache-read">0</div>
+                            <div class="stat-label">Cache Read</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="cache-create">0</div>
+                            <div class="stat-label">Cache Create</div>
+                        </div>
+                    </div>
+
+                    <div class="usage-section">
+                        <h3>Token Usage</h3>
+                        <div class="usage-bar" id="input-bar">
+                            <div class="label">
+                                <span>Input</span>
+                                <span id="input-pct">0%</span>
+                            </div>
+                            <div class="bar"><div class="fill" style="width: 0%"></div></div>
+                        </div>
+                        <div class="usage-bar" id="output-bar">
+                            <div class="label">
+                                <span>Output</span>
+                                <span id="output-pct">0%</span>
+                            </div>
+                            <div class="bar"><div class="fill" style="width: 0%"></div></div>
+                        </div>
+                    </div>
+
+                    <div class="usage-section">
+                        <h3>Run Info</h3>
+                        <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.8;">
+                            <div><strong>Run ID:</strong> <span id="run-id">--</span></div>
+                            <div><strong>Started:</strong> <span id="run-start">--</span></div>
+                            <div><strong>Duration:</strong> <span id="run-duration">--</span></div>
+                            <div><strong>Model:</strong> <span id="model-name">--</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let events = [];
+        let eventSource = null;
+        let lastOffset = 0;
+        let runStartTime = null;
+        let durationInterval = null;
+
+        // DOM Elements
+        const timeline = document.getElementById('timeline');
+        const messages = document.getElementById('messages');
+        const connectionStatus = document.getElementById('connection-status');
+        const logSelect = document.getElementById('log-select');
+
+        // Format numbers
+        function formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        // Format time
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        // Format duration
+        function formatDuration(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds % 60}s`;
+            }
+            return `${seconds}s`;
+        }
+
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Truncate text
+        function truncate(text, maxLength = 100) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+
+        // Update connection status
+        function setConnectionStatus(connected, text) {
+            connectionStatus.className = 'connection-status' + (connected ? '' : ' disconnected');
+            connectionStatus.querySelector('span').textContent = text;
+        }
+
+        // Process event
+        function processEvent(event) {
+            events.push(event);
+            updateTimeline(event);
+            updateMessages(event);
+            updateStats(event);
+        }
+
+        // Update timeline
+        function updateTimeline(event) {
+            if (timeline.querySelector('.empty-state')) {
+                timeline.innerHTML = '';
+            }
+
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+
+            let type = '';
+            let content = '';
+            let time = event.timestamp ? formatTime(new Date(event.timestamp)) : '--';
+
+            switch (event.type) {
+                case 'run_start':
+                    item.className += ' iteration';
+                    type = 'RUN START';
+                    content = `Started run ${event.run_id}`;
+                    runStartTime = new Date(event.timestamp);
+                    document.getElementById('run-id').textContent = event.run_id;
+                    document.getElementById('run-start').textContent = runStartTime.toLocaleString();
+                    startDurationTimer();
+                    break;
+
+                case 'iteration_start':
+                    item.className += ' iteration';
+                    type = 'ITERATION';
+                    content = `Starting iteration ${event.iteration}`;
+                    updateStatusItem('status-iteration', `${event.iteration}/-`, 'running');
+                    updateStatusItem('status-run', 'Running', 'running');
+                    break;
+
+                case 'iteration_end':
+                    type = 'ITERATION';
+                    content = `Completed iteration ${event.iteration}`;
+                    break;
+
+                case 'assistant':
+                    item.className += ' tool-use';
+                    type = 'ASSISTANT';
+                    const assistantContent = event.message?.content;
+                    if (Array.isArray(assistantContent)) {
+                        const toolUse = assistantContent.find(c => c.type === 'tool_use');
+                        const textContent = assistantContent.find(c => c.type === 'text');
+                        if (toolUse) {
+                            content = `Tool: ${toolUse.name}`;
+                        } else if (textContent) {
+                            content = truncate(textContent.text, 80);
+                        }
+                    }
+                    if (event.message?.model) {
+                        document.getElementById('model-name').textContent = event.message.model;
+                    }
+                    break;
+
+                case 'user':
+                    item.className += ' result';
+                    type = 'TOOL RESULT';
+                    const userContent = event.message?.content;
+                    if (Array.isArray(userContent) && userContent[0]?.type === 'tool_result') {
+                        const result = userContent[0];
+                        content = result.is_error ? 'Error' : truncate(result.content, 60);
+                    }
+                    break;
+
+                case 'result':
+                    item.className += ' ' + (event.is_error ? 'error' : 'result');
+                    type = event.is_error ? 'ERROR' : 'COMPLETE';
+                    content = event.result ? truncate(event.result, 80) : 'Run completed';
+                    if (event.num_turns) {
+                        updateStatusItem('status-turns', event.num_turns.toString());
+                    }
+                    break;
+
+                case 'run_complete':
+                    item.className += ' result';
+                    type = 'RUN COMPLETE';
+                    content = `Status: ${event.status}, Iterations: ${event.iterations_used}`;
+                    updateStatusItem('status-run', event.status === 'success' ? 'Complete' : 'Stopped', event.status === 'success' ? 'running' : 'warning');
+                    stopDurationTimer();
+                    break;
+
+                default:
+                    return; // Skip unknown event types
+            }
+
+            item.innerHTML = `
+                <div class="timeline-header">
+                    <span class="timeline-type">${type}</span>
+                    <span class="timeline-time">${time}</span>
+                </div>
+                <div class="timeline-content">${escapeHtml(content)}</div>
+            `;
+
+            timeline.appendChild(item);
+            timeline.scrollTop = timeline.scrollHeight;
+        }
+
+        // Update messages panel
+        function updateMessages(event) {
+            if (event.type !== 'assistant' && event.type !== 'user') return;
+
+            if (messages.querySelector('.empty-state')) {
+                messages.innerHTML = '';
+            }
+
+            const msg = document.createElement('div');
+            msg.className = 'message ' + event.type;
+
+            let content = '';
+            const msgContent = event.message?.content;
+
+            if (event.type === 'assistant' && Array.isArray(msgContent)) {
+                for (const block of msgContent) {
+                    if (block.type === 'text') {
+                        content += `<div class="message-content">${escapeHtml(block.text)}</div>`;
+                    } else if (block.type === 'tool_use') {
+                        let inputDisplay = '';
+                        if (block.input) {
+                            if (typeof block.input === 'string') {
+                                inputDisplay = escapeHtml(block.input);
+                            } else if (block.input.command) {
+                                inputDisplay = escapeHtml(block.input.command);
+                            } else {
+                                inputDisplay = escapeHtml(JSON.stringify(block.input, null, 2));
+                            }
+                        }
+                        content += `
+                            <div class="tool-card">
+                                <div class="tool-name">${escapeHtml(block.name)}</div>
+                                <pre class="tool-input">${inputDisplay}</pre>
+                            </div>
+                        `;
+                    }
+                }
+            } else if (event.type === 'user' && Array.isArray(msgContent)) {
+                const result = msgContent[0];
+                if (result?.type === 'tool_result') {
+                    const resultContent = result.content || '';
+                    const displayContent = resultContent.length > 500
+                        ? resultContent.substring(0, 500) + '\n... (truncated)'
+                        : resultContent;
+                    content = `<pre class="message-content">${escapeHtml(displayContent)}</pre>`;
+                }
+            }
+
+            if (!content) return;
+
+            const uuid = event.uuid ? event.uuid.substring(0, 8) : '';
+            msg.innerHTML = `
+                <div class="message-header">
+                    <span class="message-role">${event.type}</span>
+                    <span class="message-id">${uuid}</span>
+                </div>
+                ${content}
+            `;
+
+            messages.appendChild(msg);
+            messages.scrollTop = messages.scrollHeight;
+
+            // Update message count
+            const count = messages.querySelectorAll('.message').length;
+            document.getElementById('message-count').textContent = `${count} messages`;
+        }
+
+        // Update stats
+        function updateStats(event) {
+            if (event.type === 'result' && event.usage) {
+                const u = event.usage;
+                document.getElementById('input-tokens').textContent = formatNumber(u.input_tokens || 0);
+                document.getElementById('output-tokens').textContent = formatNumber(u.output_tokens || 0);
+                document.getElementById('cache-read').textContent = formatNumber(u.cache_read_input_tokens || 0);
+                document.getElementById('cache-create').textContent = formatNumber(u.cache_creation_input_tokens || 0);
+
+                // Update cost
+                if (event.total_cost_usd) {
+                    document.getElementById('total-cost').textContent = '$' + event.total_cost_usd.toFixed(2);
+                }
+
+                // Update progress bars (assuming 200k context window)
+                const maxTokens = 200000;
+                const inputPct = Math.min(100, ((u.input_tokens || 0) / maxTokens) * 100);
+                const outputPct = Math.min(100, ((u.output_tokens || 0) / 64000) * 100);
+
+                document.querySelector('#input-bar .fill').style.width = inputPct + '%';
+                document.getElementById('input-pct').textContent = inputPct.toFixed(1) + '%';
+
+                document.querySelector('#output-bar .fill').style.width = outputPct + '%';
+                document.getElementById('output-pct').textContent = outputPct.toFixed(1) + '%';
+            }
+
+            // Accumulate stats from individual messages
+            if (event.type === 'assistant' && event.message?.usage) {
+                const u = event.message.usage;
+                // Could accumulate here for live stats if desired
+            }
+        }
+
+        // Update status item
+        function updateStatusItem(id, value, status = '') {
+            const item = document.getElementById(id);
+            item.querySelector('.value').textContent = value;
+            item.className = 'status-item ' + status;
+        }
+
+        // Duration timer
+        function startDurationTimer() {
+            if (durationInterval) clearInterval(durationInterval);
+            durationInterval = setInterval(() => {
+                if (runStartTime) {
+                    const duration = Date.now() - runStartTime.getTime();
+                    document.getElementById('run-duration').textContent = formatDuration(duration);
+                }
+            }, 1000);
+        }
+
+        function stopDurationTimer() {
+            if (durationInterval) {
+                clearInterval(durationInterval);
+                durationInterval = null;
+            }
+        }
+
+        // Load logs list
+        async function loadLogsList() {
+            try {
+                const response = await fetch('/api/logs');
+                const logs = await response.json();
+
+                logs.forEach(log => {
+                    const option = document.createElement('option');
+                    option.value = log.name;
+                    option.textContent = log.name.replace('.jsonl', '');
+                    logSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load logs list:', error);
+            }
+        }
+
+        // Load specific log
+        async function loadLog(logName) {
+            events = [];
+            timeline.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📡</div><div>Loading...</div></div>';
+            messages.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💬</div><div>Loading...</div></div>';
+
+            try {
+                const url = logName === 'current' ? '/api/log' : `/api/log/${logName}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                timeline.innerHTML = '';
+                messages.innerHTML = '';
+
+                data.forEach(event => processEvent(event));
+
+                if (logName === 'current') {
+                    startStream(data.length);
+                }
+            } catch (error) {
+                console.error('Failed to load log:', error);
+                setConnectionStatus(false, 'Load failed');
+            }
+        }
+
+        // Start SSE stream
+        function startStream(offset = 0) {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            lastOffset = offset;
+            eventSource = new EventSource(`/api/log/stream?offset=${offset}`);
+
+            eventSource.onopen = () => {
+                setConnectionStatus(true, 'Live');
+            };
+
+            eventSource.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.index >= lastOffset) {
+                        processEvent(data.event);
+                        lastOffset = data.index + 1;
+                    }
+                } catch (error) {
+                    console.error('Failed to parse event:', error);
+                }
+            };
+
+            eventSource.onerror = () => {
+                setConnectionStatus(false, 'Reconnecting...');
+                setTimeout(() => {
+                    if (logSelect.value === 'current') {
+                        startStream(lastOffset);
+                    }
+                }, 2000);
+            };
+        }
+
+        // Log selector change handler
+        logSelect.addEventListener('change', (e) => {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            loadLog(e.target.value);
+        });
+
+        // Initialize
+        loadLogsList();
+        loadLog('current');
+    </script>
+</body>
+</html>
