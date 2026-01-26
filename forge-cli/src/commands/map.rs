@@ -69,20 +69,26 @@ impl OutputFormat {
 
 /// Run the map command.
 pub fn run_map(options: MapOptions) -> Result<(), MapError> {
+    // Load config for graph path and staleness_days
+    let config = if let Some(config_path) = &options.config {
+        Some(ForgeConfig::load_from_path(std::path::Path::new(config_path))
+            .map_err(|e| MapError::ConfigError(e.to_string()))?)
+    } else {
+        // Try to load default config
+        ForgeConfig::load_default().ok()
+    };
+
     // Determine graph path - use input override, config, or default
     let graph_path = if let Some(input) = &options.input {
         PathBuf::from(input)
-    } else if let Some(config_path) = &options.config {
-        // Load config to get graph path
-        let config = ForgeConfig::load_from_path(std::path::Path::new(config_path))
-            .map_err(|e| MapError::ConfigError(e.to_string()))?;
-        config.output.graph_path.clone()
+    } else if let Some(cfg) = &config {
+        cfg.output.graph_path.clone()
     } else {
-        // Try to load default config, or use default graph path
-        ForgeConfig::load_default()
-            .map(|c| c.output.graph_path)
-            .unwrap_or_else(|_| PathBuf::from(".forge/graph.json"))
+        PathBuf::from(".forge/graph.json")
     };
+
+    // Get staleness_days from config or use default
+    let staleness_days = config.as_ref().map(|c| c.staleness_days).unwrap_or(7);
 
     // Load the graph
     let graph = ForgeGraph::load_from_file(&graph_path)
@@ -95,10 +101,10 @@ pub fn run_map(options: MapOptions) -> Result<(), MapError> {
     let output = if let Some(services) = &options.service {
         // Extract subgraph for specified services
         let seed_ids = parse_service_filter(services, &graph)?;
-        serialize_subgraph(&graph, &seed_ids, format, options.budget)?
+        serialize_subgraph(&graph, &seed_ids, format, options.budget, staleness_days)?
     } else {
         // Serialize entire graph
-        serialize_graph(&graph, format, options.budget)?
+        serialize_graph(&graph, format, options.budget, staleness_days)?
     };
 
     // Write output
@@ -144,18 +150,19 @@ fn serialize_graph(
     graph: &ForgeGraph,
     format: OutputFormat,
     _budget: Option<u32>,
+    staleness_days: u32,
 ) -> Result<String, MapError> {
     match format {
         OutputFormat::Markdown => {
-            let serializer = MarkdownSerializer::new();
+            let serializer = MarkdownSerializer::new().with_staleness_days(staleness_days);
             Ok(serializer.serialize_graph(graph))
         }
         OutputFormat::Json => {
-            let serializer = JsonSerializer::new();
+            let serializer = JsonSerializer::new().with_staleness_days(staleness_days);
             Ok(serializer.serialize_graph(graph))
         }
         OutputFormat::Mermaid => {
-            let serializer = MermaidSerializer::new();
+            let serializer = MermaidSerializer::new().with_staleness_days(staleness_days);
             Ok(serializer.serialize_graph(graph))
         }
     }
@@ -167,6 +174,7 @@ fn serialize_subgraph(
     seed_ids: &[NodeId],
     format: OutputFormat,
     _budget: Option<u32>,
+    staleness_days: u32,
 ) -> Result<String, MapError> {
     let config = SubgraphConfig {
         seed_nodes: seed_ids.to_vec(),
@@ -180,11 +188,11 @@ fn serialize_subgraph(
 
     match format {
         OutputFormat::Markdown => {
-            let serializer = MarkdownSerializer::new();
+            let serializer = MarkdownSerializer::new().with_staleness_days(staleness_days);
             Ok(serializer.serialize_subgraph(&subgraph))
         }
         OutputFormat::Json => {
-            let serializer = JsonSerializer::new();
+            let serializer = JsonSerializer::new().with_staleness_days(staleness_days);
             let query_info = QueryInfo {
                 query_type: "service_filter".to_string(),
                 seeds: Some(seed_ids.iter().map(|id| id.as_str().to_string()).collect()),
@@ -193,7 +201,7 @@ fn serialize_subgraph(
             Ok(serializer.serialize_subgraph(&subgraph, Some(query_info)))
         }
         OutputFormat::Mermaid => {
-            let serializer = MermaidSerializer::new();
+            let serializer = MermaidSerializer::new().with_staleness_days(staleness_days);
             Ok(serializer.serialize_subgraph(&subgraph))
         }
     }
@@ -319,7 +327,7 @@ mod tests {
     fn test_serialize_graph_markdown() {
         let graph = create_test_graph();
 
-        let output = serialize_graph(&graph, OutputFormat::Markdown, None).unwrap();
+        let output = serialize_graph(&graph, OutputFormat::Markdown, None, 7).unwrap();
 
         assert!(output.contains("# Ecosystem Knowledge Graph"));
         assert!(output.contains("User API"));
@@ -332,7 +340,7 @@ mod tests {
         let graph = create_test_graph();
         let seed_ids = vec![NodeId::new(NodeType::Service, "ns", "user-api").unwrap()];
 
-        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Markdown, None).unwrap();
+        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Markdown, None, 7).unwrap();
 
         assert!(output.contains("# Relevant Context"));
         assert!(output.contains("User API"));
@@ -400,7 +408,7 @@ mod tests {
     fn test_serialize_graph_json() {
         let graph = create_test_graph();
 
-        let output = serialize_graph(&graph, OutputFormat::Json, None).unwrap();
+        let output = serialize_graph(&graph, OutputFormat::Json, None, 7).unwrap();
 
         // Should be valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -422,7 +430,7 @@ mod tests {
         let graph = create_test_graph();
         let seed_ids = vec![NodeId::new(NodeType::Service, "ns", "user-api").unwrap()];
 
-        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Json, None).unwrap();
+        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Json, None, 7).unwrap();
 
         // Should be valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -514,7 +522,7 @@ mod tests {
     fn test_serialize_graph_mermaid() {
         let graph = create_test_graph();
 
-        let output = serialize_graph(&graph, OutputFormat::Mermaid, None).unwrap();
+        let output = serialize_graph(&graph, OutputFormat::Mermaid, None, 7).unwrap();
 
         // Should start with flowchart declaration
         assert!(output.starts_with("flowchart LR"));
@@ -538,7 +546,7 @@ mod tests {
         let graph = create_test_graph();
         let seed_ids = vec![NodeId::new(NodeType::Service, "ns", "user-api").unwrap()];
 
-        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Mermaid, None).unwrap();
+        let output = serialize_subgraph(&graph, &seed_ids, OutputFormat::Mermaid, None, 7).unwrap();
 
         // Should start with flowchart declaration
         assert!(output.starts_with("flowchart LR"));

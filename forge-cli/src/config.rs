@@ -77,10 +77,18 @@ pub struct ForgeConfig {
     /// Default token budget for map output.
     #[serde(default = "default_token_budget")]
     pub token_budget: u32,
+
+    /// Number of days after which a node is considered stale.
+    #[serde(default = "default_staleness_days")]
+    pub staleness_days: u32,
 }
 
 fn default_token_budget() -> u32 {
     8000
+}
+
+fn default_staleness_days() -> u32 {
+    7
 }
 
 /// Repository source configuration.
@@ -268,6 +276,7 @@ impl ForgeConfig {
             output: OutputConfig::default(),
             llm: LLMConfig::default(),
             token_budget: default_token_budget(),
+            staleness_days: default_staleness_days(),
         }
     }
 
@@ -294,6 +303,13 @@ impl ForgeConfig {
         if let Ok(budget) = env::var("FORGE_TOKEN_BUDGET") {
             if let Ok(n) = budget.parse() {
                 self.token_budget = n;
+            }
+        }
+
+        // Override staleness days
+        if let Ok(days) = env::var("FORGE_STALENESS_DAYS") {
+            if let Ok(n) = days.parse() {
+                self.staleness_days = n;
             }
         }
 
@@ -456,6 +472,7 @@ repos:
         let config = ForgeConfig::load_from_path(&path).unwrap();
         assert_eq!(config.repos.github_org, Some("test-org".to_string()));
         assert_eq!(config.token_budget, 8000);
+        assert_eq!(config.staleness_days, 7);
         assert_eq!(config.llm.provider, "claude");
     }
 
@@ -596,6 +613,7 @@ repos:
             output: OutputConfig::default(),
             llm: LLMConfig::default(),
             token_budget: 8000,
+            staleness_days: default_staleness_days(),
         };
 
         // Test that the structure stores values correctly (non-env-var test)
@@ -622,6 +640,7 @@ repos:
             output: OutputConfig::default(),
             llm: LLMConfig::default(),
             token_budget: 8000,
+            staleness_days: default_staleness_days(),
         };
 
         assert_eq!(config.token_budget, 8000);
@@ -645,6 +664,7 @@ repos:
             output: OutputConfig::default(),
             llm: LLMConfig::default(),
             token_budget: 8000,
+            staleness_days: default_staleness_days(),
         };
 
         assert!(config.is_excluded("old-service-deprecated"));
@@ -668,6 +688,7 @@ repos:
             output: OutputConfig::default(),
             llm: LLMConfig::default(),
             token_budget: 8000,
+            staleness_days: default_staleness_days(),
         };
 
         assert!(config.is_language_excluded("terraform"));
@@ -710,6 +731,7 @@ repos:
         assert_eq!(config.output.graph_path, PathBuf::from(".forge/graph.json"));
         assert_eq!(config.llm.provider, "claude");
         assert_eq!(config.token_budget, 8000);
+        assert_eq!(config.staleness_days, 7);
         assert!(config.languages.exclude.is_empty());
     }
 

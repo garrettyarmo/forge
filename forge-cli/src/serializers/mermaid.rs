@@ -77,6 +77,9 @@ pub struct MermaidSerializer {
 
     /// Include style classes
     include_styles: bool,
+
+    /// Number of days after which a node is considered stale (0 = disabled)
+    staleness_days: u32,
 }
 
 impl Default for MermaidSerializer {
@@ -86,6 +89,7 @@ impl Default for MermaidSerializer {
             include_attributes: true,
             max_nodes: 50,
             include_styles: true,
+            staleness_days: 7,
         }
     }
 }
@@ -117,6 +121,12 @@ impl MermaidSerializer {
     /// Set whether to include style classes.
     pub fn with_styles(mut self, include: bool) -> Self {
         self.include_styles = include;
+        self
+    }
+
+    /// Set the staleness threshold in days (0 to disable staleness indicators).
+    pub fn with_staleness_days(mut self, days: u32) -> Self {
+        self.staleness_days = days;
         self
     }
 
@@ -451,10 +461,19 @@ impl MermaidSerializer {
 
     fn build_service_label(&self, node: &Node) -> String {
         if !self.include_attributes {
-            return escape_label(&node.display_name);
+            let mut label = escape_label(&node.display_name);
+            if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+                label.push_str(" ⚠️");
+            }
+            return label;
         }
 
         let mut label = escape_label(&node.display_name);
+
+        // Add staleness indicator
+        if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+            label.push_str(" ⚠️");
+        }
 
         let lang = node
             .attributes
@@ -484,10 +503,19 @@ impl MermaidSerializer {
 
     fn build_database_label(&self, node: &Node) -> String {
         if !self.include_attributes {
-            return escape_label(&node.display_name);
+            let mut label = escape_label(&node.display_name);
+            if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+                label.push_str(" ⚠️");
+            }
+            return label;
         }
 
         let mut label = escape_label(&node.display_name);
+
+        // Add staleness indicator
+        if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+            label.push_str(" ⚠️");
+        }
 
         if let Some(db_type) = node.attributes.get("db_type").and_then(|v| match v {
             forge_graph::AttributeValue::String(s) => Some(s.as_str()),
@@ -501,10 +529,19 @@ impl MermaidSerializer {
 
     fn build_queue_label(&self, node: &Node) -> String {
         if !self.include_attributes {
-            return escape_label(&node.display_name);
+            let mut label = escape_label(&node.display_name);
+            if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+                label.push_str(" ⚠️");
+            }
+            return label;
         }
 
         let mut label = escape_label(&node.display_name);
+
+        // Add staleness indicator
+        if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+            label.push_str(" ⚠️");
+        }
 
         if let Some(q_type) = node.attributes.get("queue_type").and_then(|v| match v {
             forge_graph::AttributeValue::String(s) => Some(s.as_str()),
@@ -521,7 +558,13 @@ impl MermaidSerializer {
             NodeType::Service => self.build_service_label(node),
             NodeType::Database => self.build_database_label(node),
             NodeType::Queue => self.build_queue_label(node),
-            _ => escape_label(&node.display_name),
+            _ => {
+                let mut label = escape_label(&node.display_name);
+                if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+                    label.push_str(" ⚠️");
+                }
+                label
+            }
         }
     }
 

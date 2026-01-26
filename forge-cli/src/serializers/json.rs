@@ -89,6 +89,23 @@ pub struct JsonNode {
     /// Business context (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub business_context: Option<serde_json::Value>,
+
+    /// Staleness information (if node is stale)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub staleness: Option<StalenessInfo>,
+}
+
+/// Staleness information for a node.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StalenessInfo {
+    /// Whether the node is stale
+    pub is_stale: bool,
+
+    /// Age in days since last update
+    pub age_days: i64,
+
+    /// Human-readable description of staleness
+    pub description: String,
 }
 
 /// An edge in JSON format.
@@ -122,13 +139,28 @@ pub struct Summary {
 }
 
 /// JSON serializer for knowledge graphs.
-#[derive(Debug, Clone, Default)]
-pub struct JsonSerializer;
+#[derive(Debug, Clone)]
+pub struct JsonSerializer {
+    /// Number of days after which a node is considered stale (0 = disabled)
+    staleness_days: u32,
+}
+
+impl Default for JsonSerializer {
+    fn default() -> Self {
+        Self { staleness_days: 7 }
+    }
+}
 
 impl JsonSerializer {
-    /// Create a new JsonSerializer.
+    /// Create a new JsonSerializer with default settings.
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// Set the staleness threshold in days (0 to disable staleness tracking).
+    pub fn with_staleness_days(mut self, days: u32) -> Self {
+        self.staleness_days = days;
+        self
     }
 
     /// Serialize an entire graph to JSON.
@@ -235,6 +267,20 @@ impl JsonSerializer {
             .as_ref()
             .and_then(|bc| serde_json::to_value(bc).ok());
 
+        // Calculate staleness information if enabled
+        let staleness = if self.staleness_days > 0 {
+            let is_stale = node.metadata.is_stale(self.staleness_days);
+            let age_days = node.metadata.age_days();
+            let description = node.metadata.staleness_description();
+            Some(StalenessInfo {
+                is_stale,
+                age_days,
+                description,
+            })
+        } else {
+            None
+        };
+
         JsonNode {
             id: node.id.as_str().to_string(),
             node_type: node_type_to_string(node.node_type),
@@ -242,6 +288,7 @@ impl JsonSerializer {
             relevance,
             attributes: serde_json::to_value(&node.attributes).unwrap_or(serde_json::Value::Null),
             business_context,
+            staleness,
         }
     }
 

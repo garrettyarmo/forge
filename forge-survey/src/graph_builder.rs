@@ -127,6 +127,10 @@ impl GraphBuilder {
 
         // Check if service already exists
         if let Some(existing_id) = self.service_map.get(&discovery.name) {
+            // Update the timestamp to mark it as recently surveyed
+            if let Some(node) = self.graph.get_node_mut(existing_id) {
+                node.metadata.updated_at = chrono::Utc::now();
+            }
             return existing_id.clone();
         }
 
@@ -269,6 +273,10 @@ impl GraphBuilder {
             .unwrap_or_else(|| "unknown".to_string());
 
         let db_id = if let Some(id) = self.resource_map.get(&db_name) {
+            // Update the timestamp to mark it as recently surveyed
+            if let Some(node) = self.graph.get_node_mut(id) {
+                node.metadata.updated_at = chrono::Utc::now();
+            }
             id.clone()
         } else {
             let id = NodeId::new(NodeType::Database, &namespace, &db_name)
@@ -331,6 +339,10 @@ impl GraphBuilder {
             .unwrap_or_else(|| "unknown".to_string());
 
         let queue_id = if let Some(id) = self.resource_map.get(&queue_name) {
+            // Update the timestamp to mark it as recently surveyed
+            if let Some(node) = self.graph.get_node_mut(id) {
+                node.metadata.updated_at = chrono::Utc::now();
+            }
             id.clone()
         } else {
             let id = NodeId::new(NodeType::Queue, &namespace, &queue_name)
@@ -379,6 +391,10 @@ impl GraphBuilder {
             .unwrap_or_else(|| "unknown".to_string());
 
         let resource_id = if let Some(id) = self.resource_map.get(&resource_name) {
+            // Update the timestamp to mark it as recently surveyed
+            if let Some(node) = self.graph.get_node_mut(id) {
+                node.metadata.updated_at = chrono::Utc::now();
+            }
             id.clone()
         } else {
             let id = NodeId::new(NodeType::CloudResource, &namespace, &resource_name)

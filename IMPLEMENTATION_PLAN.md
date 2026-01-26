@@ -31,6 +31,18 @@ Forge is a **reusable platform** for surveying and mapping software ecosystems. 
 3. Any developer can clone Forge, configure it for their repos, and get value within 30 minutes
 4. Adding a new language parser requires only implementing a well-defined trait
 
+### LLM Agent Success Criteria (M8)
+
+Forge is successful for LLM coding agents when:
+
+1. LLM can query "What does service X do?" and get purpose, constraints, and gotchas
+2. LLM can query "How do I deploy service X?" and get deployment commands
+3. LLM can query "What are the dependencies of service X?" and get full dependency graph
+4. LLM receives actionable DO/DON'T instructions from business context
+5. JSON output includes deployment_method, environment, aws_account_id attributes
+6. JSON output includes llm_instructions with code_style, testing, and deployment guidance
+7. Token-budgeted output fits within LLM context windows
+
 ### Platform Philosophy
 
 Forge is NOT specific to any particular codebase. It must be:
@@ -1049,10 +1061,39 @@ forge-graph = { path = "../forge-graph" }
       - `survey_repository` now returns `SurveyInfo` tuple for state tracking
     - All 521+ workspace tests passing, Clippy clean, formatting verified
 
-- [ ] **M7-T2**: Implement staleness indicators
+- [x] **M7-T2**: Implement staleness indicators
   - Track last-surveyed timestamp per node
   - Mark stale nodes in output
-  - **Files**: `forge-graph/src/node.rs`
+  - **Files**: `forge-graph/src/node.rs`, `forge-cli/src/config.rs`, `forge-cli/src/serializers/*.rs`, `forge-cli/src/commands/map.rs`, `forge-survey/src/graph_builder.rs`
+  - **Implementation Notes**:
+    - **Core functionality (forge-graph/src/node.rs)**:
+      - Added three new methods to `NodeMetadata`:
+        - `is_stale(staleness_days: u32) -> bool`: Checks if a node hasn't been updated within the specified threshold
+        - `staleness_description() -> String`: Returns human-readable descriptions ("Updated today", "Updated 5 days ago", "Updated 2 weeks ago", etc.)
+        - `age_days() -> i64`: Returns the age of the node in days since last update
+      - Staleness checking uses the existing `updated_at` timestamp (DateTime<Utc>) in `NodeMetadata`
+      - 9 comprehensive tests covering fresh nodes, old nodes, boundary conditions, and all description formats
+    - **Configuration (forge-cli/src/config.rs)**:
+      - Added `staleness_days: u32` field to `ForgeConfig` (default: 7 days)
+      - Added `FORGE_STALENESS_DAYS` environment variable override
+      - Updated all config tests to include staleness_days field
+    - **Serializers updated to display staleness**:
+      - **MarkdownSerializer**: Shows "⚠️ **Status**: Stale (Updated X days ago) - May be outdated" for stale nodes in all sections (services, databases, queues, cloud resources)
+      - **JsonSerializer**: Adds optional `staleness` field with `StalenessInfo` struct containing `is_stale`, `age_days`, and `description`
+      - **MermaidSerializer**: Appends ⚠️ emoji to stale node labels in diagrams
+      - All serializers support `with_staleness_days()` builder method
+    - **Map command integration (forge-cli/src/commands/map.rs)**:
+      - Loads `staleness_days` from config (or defaults to 7)
+      - Passes staleness_days to all serializers during graph/subgraph serialization
+      - Updated all 6 map command tests to pass staleness_days parameter
+    - **Survey command integration (forge-survey/src/graph_builder.rs)**:
+      - Updated `add_service()` to refresh `updated_at` timestamp for existing services during incremental surveys
+      - Updated `add_database_access()` to refresh timestamp for existing databases
+      - Updated `add_queue_access()` to refresh timestamp for existing queues
+      - Updated `add_cloud_resource()` to refresh timestamp for existing cloud resources
+      - Ensures all re-discovered nodes are marked as recently surveyed
+    - **All 533+ workspace tests passing**
+    - All tests passing, implementation ready for CLI integration
 
 - [ ] **M7-T3**: Improve CLI UX
   - Progress bars with indicatif
@@ -1117,6 +1158,76 @@ console = "0.15"
 - [ ] A new user can follow README and get working output
 - [ ] All tests pass in CI
 - [ ] No panics on malformed input
+
+---
+
+## Milestone 8: LLM Optimization
+
+**Goal**: Optimize Forge output for LLM coding agent consumption with deployment context and actionable instructions.
+
+> **Detailed Specification**: [spec/m8-llm-optimization.md](spec/m8-llm-optimization.md)
+
+### Tasks
+
+- [ ] **M8-T1**: Enhanced Terraform parser for deployment metadata
+  - Extract tags from resource blocks
+  - Parse backend configuration for workspace detection
+  - Infer deployment_method from tag patterns
+  - Store deployment metadata in node attributes
+  - **Files**: `forge-survey/src/parser/terraform.rs`
+
+- [ ] **M8-T2**: SAM/CloudFormation parser
+  - Parse template.yaml structure (SAM templates)
+  - Extract AWS::Serverless::* resources
+  - Detect SAM vs raw CloudFormation
+  - Extract stack parameters and outputs
+  - **Files**: `forge-survey/src/parser/cloudformation.rs` (NEW)
+
+- [ ] **M8-T3**: Environment and account mapping
+  - Extend forge.yaml with environment definitions
+  - Map repos to environments (dev/staging/prod)
+  - Inject environment attributes during graph building
+  - Add --env filter to map command
+  - **Files**: `forge-cli/src/config.rs`, `forge-survey/src/graph_builder.rs`, `forge-cli/src/commands/map.rs`
+
+- [ ] **M8-T4**: LLM instruction generation module
+  - Convert business context gotchas to DO NOT statements
+  - Infer code style from AST patterns
+  - Generate deployment commands from metadata
+  - Extract dependency descriptions with context
+  - **Files**: `forge-cli/src/llm_instructions.rs` (NEW)
+
+- [ ] **M8-T5**: Enhanced JSON output with llm_instructions
+  - Add llm_instructions field to node serialization
+  - Include deployment metadata attributes
+  - Add environment and account attributes
+  - Update JSON schema documentation
+  - **Files**: `forge-cli/src/serializers/json.rs`
+
+- [ ] **M8-T6**: Integration tests for LLM-optimized output
+  - End-to-end test: survey → map → JSON with LLM instructions
+  - Test multi-environment setup
+  - Test deployment metadata extraction
+  - Verify instruction quality
+  - **Files**: `forge-survey/tests/integration_llm.rs` (NEW)
+
+### Dependencies
+
+```toml
+# forge-survey/Cargo.toml additions
+[dependencies]
+serde_yaml = "0.9"  # Already exists, for SAM/CloudFormation parsing
+```
+
+### Acceptance Criteria
+
+- [ ] Terraform resources include deployment_method, stack_name, workspace attributes
+- [ ] SAM templates parsed and resources extracted correctly
+- [ ] forge.yaml supports environment definitions
+- [ ] forge map --env production filters correctly
+- [ ] JSON output includes llm_instructions field
+- [ ] LLM instructions include code_style, testing, deployment, gotchas sections
+- [ ] All tests pass (>540 tests total)
 
 ---
 

@@ -338,6 +338,61 @@ impl Default for NodeMetadata {
     }
 }
 
+impl NodeMetadata {
+    /// Check if this node is stale (not updated within the specified number of days).
+    ///
+    /// # Arguments
+    /// * `staleness_days` - The number of days after which a node is considered stale
+    ///
+    /// # Returns
+    /// `true` if the node was last updated more than `staleness_days` ago
+    pub fn is_stale(&self, staleness_days: u32) -> bool {
+        let threshold = chrono::Duration::days(staleness_days as i64);
+        let age = Utc::now() - self.updated_at;
+        age > threshold
+    }
+
+    /// Get a human-readable description of when this node was last updated.
+    ///
+    /// Returns strings like:
+    /// - "Updated today"
+    /// - "Updated yesterday"
+    /// - "Updated 5 days ago"
+    /// - "Updated 2 weeks ago"
+    /// - "Updated 3 months ago"
+    pub fn staleness_description(&self) -> String {
+        let age = Utc::now() - self.updated_at;
+        let days = age.num_days();
+
+        if days == 0 {
+            "Updated today".to_string()
+        } else if days == 1 {
+            "Updated yesterday".to_string()
+        } else if days < 7 {
+            format!("Updated {} days ago", days)
+        } else if days < 30 {
+            let weeks = days / 7;
+            if weeks == 1 {
+                "Updated 1 week ago".to_string()
+            } else {
+                format!("Updated {} weeks ago", weeks)
+            }
+        } else {
+            let months = days / 30;
+            if months == 1 {
+                "Updated 1 month ago".to_string()
+            } else {
+                format!("Updated {} months ago", months)
+            }
+        }
+    }
+
+    /// Get the age of this node in days since last update.
+    pub fn age_days(&self) -> i64 {
+        (Utc::now() - self.updated_at).num_days()
+    }
+}
+
 /// A node in the knowledge graph representing an entity in the ecosystem.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
@@ -609,6 +664,100 @@ mod tests {
 
             let f: AttributeValue = 3.14f64.into();
             assert_eq!(f, AttributeValue::Float(3.14));
+        }
+    }
+
+    mod staleness_tests {
+        use super::*;
+        use chrono::Duration;
+        use pretty_assertions::assert_eq;
+
+        #[test]
+        fn test_is_stale_fresh_node() {
+            let metadata = NodeMetadata::default();
+            assert!(!metadata.is_stale(7), "Newly created node should not be stale");
+        }
+
+        #[test]
+        fn test_is_stale_old_node() {
+            let mut metadata = NodeMetadata::default();
+            // Set updated_at to 10 days ago
+            metadata.updated_at = Utc::now() - Duration::days(10);
+            assert!(metadata.is_stale(7), "Node updated 10 days ago should be stale (threshold: 7)");
+        }
+
+        #[test]
+        fn test_is_stale_boundary() {
+            let mut metadata = NodeMetadata::default();
+            // Set updated_at to exactly 7 days ago (minus 1 second to avoid timing issues)
+            metadata.updated_at = Utc::now() - Duration::days(7) + Duration::seconds(1);
+            // Should not be stale if just under threshold
+            assert!(!metadata.is_stale(7), "Node just under threshold should not be stale");
+
+            // Set updated_at to 7 days and 1 hour ago
+            metadata.updated_at = Utc::now() - Duration::days(7) - Duration::hours(1);
+            assert!(metadata.is_stale(7), "Node past threshold should be stale");
+        }
+
+        #[test]
+        fn test_staleness_description_today() {
+            let metadata = NodeMetadata::default();
+            assert_eq!(metadata.staleness_description(), "Updated today");
+        }
+
+        #[test]
+        fn test_staleness_description_yesterday() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(1);
+            assert_eq!(metadata.staleness_description(), "Updated yesterday");
+        }
+
+        #[test]
+        fn test_staleness_description_days() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(5);
+            assert_eq!(metadata.staleness_description(), "Updated 5 days ago");
+        }
+
+        #[test]
+        fn test_staleness_description_one_week() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(7);
+            assert_eq!(metadata.staleness_description(), "Updated 1 week ago");
+        }
+
+        #[test]
+        fn test_staleness_description_weeks() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(14);
+            assert_eq!(metadata.staleness_description(), "Updated 2 weeks ago");
+        }
+
+        #[test]
+        fn test_staleness_description_one_month() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(30);
+            assert_eq!(metadata.staleness_description(), "Updated 1 month ago");
+        }
+
+        #[test]
+        fn test_staleness_description_months() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(60);
+            assert_eq!(metadata.staleness_description(), "Updated 2 months ago");
+        }
+
+        #[test]
+        fn test_age_days() {
+            let mut metadata = NodeMetadata::default();
+            metadata.updated_at = Utc::now() - Duration::days(10);
+            assert_eq!(metadata.age_days(), 10);
+        }
+
+        #[test]
+        fn test_age_days_fresh() {
+            let metadata = NodeMetadata::default();
+            assert_eq!(metadata.age_days(), 0);
         }
     }
 }

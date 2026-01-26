@@ -63,6 +63,9 @@ pub struct MarkdownSerializer {
 
     /// Detail level for output
     detail_level: DetailLevel,
+
+    /// Number of days after which a node is considered stale (0 = disabled)
+    staleness_days: u32,
 }
 
 impl Default for MarkdownSerializer {
@@ -72,6 +75,7 @@ impl Default for MarkdownSerializer {
             include_evidence: true,
             max_evidence_items: 3,
             detail_level: DetailLevel::Full,
+            staleness_days: 7,
         }
     }
 }
@@ -103,6 +107,12 @@ impl MarkdownSerializer {
     /// Set the maximum number of evidence items to show.
     pub fn with_max_evidence(mut self, max: usize) -> Self {
         self.max_evidence_items = max;
+        self
+    }
+
+    /// Set the staleness threshold in days (0 to disable staleness indicators).
+    pub fn with_staleness_days(mut self, days: u32) -> Self {
+        self.staleness_days = days;
         self
     }
 
@@ -220,6 +230,12 @@ impl MarkdownSerializer {
             _ => None,
         }) {
             writeln!(output, "**Repository**: {}\n", repo_url).unwrap();
+        }
+
+        // Staleness indicator
+        if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+            let age_desc = node.metadata.staleness_description();
+            writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
         }
 
         // Business context
@@ -359,6 +375,12 @@ impl MarkdownSerializer {
             writeln!(output, "**ARN**: `{}`\n", arn).unwrap();
         }
 
+        // Staleness indicator
+        if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+            let age_desc = node.metadata.staleness_description();
+            writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
+        }
+
         // Find owner (service that OWNS this database)
         let owner = graph
             .edges_to(&node.id)
@@ -447,6 +469,12 @@ impl MarkdownSerializer {
             writeln!(output, "**ARN**: `{}`\n", arn).unwrap();
         }
 
+        // Staleness indicator
+        if self.staleness_days > 0 && node.metadata.is_stale(self.staleness_days) {
+            let age_desc = node.metadata.staleness_description();
+            writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
+        }
+
         // Publishers
         let publishers: Vec<_> = graph
             .edges_to(&node.id)
@@ -510,6 +538,12 @@ impl MarkdownSerializer {
                 _ => None,
             }) {
                 writeln!(output, "**ARN**: `{}`\n", arn).unwrap();
+            }
+
+            // Staleness indicator
+            if self.staleness_days > 0 && resource.metadata.is_stale(self.staleness_days) {
+                let age_desc = resource.metadata.staleness_description();
+                writeln!(output, "⚠️ **Status**: Stale ({}) - May be outdated\n", age_desc).unwrap();
             }
 
             let users: Vec<_> = graph
