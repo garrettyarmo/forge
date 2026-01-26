@@ -1264,12 +1264,28 @@ console = "0.15"
     - 29 comprehensive unit tests all passing
     - Total workspace tests now 600+ all passing
 
-- [ ] **M8-T5**: Enhanced JSON output with llm_instructions
+- [x] **M8-T5**: Enhanced JSON output with llm_instructions
   - Add llm_instructions field to node serialization
   - Include deployment metadata attributes
   - Add environment and account attributes
   - Update JSON schema documentation
   - **Files**: `forge-cli/src/serializers/json.rs`
+  - **Implementation Notes**:
+    - Added `llm_instructions` field to `JsonNode` struct (using `LlmInstructions` type from llm_instructions module)
+    - Imported `InstructionGenerator` and `LlmInstructions` from `crate::llm_instructions`
+    - Modified `build_graph_output()` to create an `InstructionGenerator` from the graph
+    - Modified `build_subgraph_output()` to create an `InstructionGenerator` from `subgraph.graph()`
+    - Modified `node_to_json()` to accept `InstructionGenerator` reference and generate instructions for each node
+    - Empty instructions are filtered out (via `is_empty()` check) so nodes without useful instructions don't have the field
+    - Instructions are only generated for Service nodes (other node types return empty instructions)
+    - 7 comprehensive unit tests added covering:
+      - Full graph serialization with code_style, testing, deployment instructions
+      - Dependency instructions (services, databases)
+      - Gotcha transformation to DO NOT/MUST statements
+      - Database nodes don't have llm_instructions
+      - Service nodes without metadata don't have llm_instructions (empty filtered)
+      - Subgraph serialization with llm_instructions
+      - JSON format validation
 
 - [ ] **M8-T6**: Integration tests for LLM-optimized output
   - End-to-end test: survey → map → JSON with LLM instructions
@@ -1292,9 +1308,9 @@ serde_yaml = "0.9"  # Already exists, for SAM/CloudFormation parsing
 - [x] SAM templates parsed and resources extracted correctly
 - [x] forge.yaml supports environment definitions
 - [x] forge map --env production filters correctly
-- [ ] JSON output includes llm_instructions field
-- [ ] LLM instructions include code_style, testing, deployment, gotchas sections
-- [x] All tests pass (>573 tests total)
+- [x] JSON output includes llm_instructions field
+- [x] LLM instructions include code_style, testing, deployment, gotchas, dependencies sections
+- [x] All tests pass (648 tests total)
 
 ---
 

@@ -18,6 +18,7 @@
 //! }
 //! ```
 
+use crate::llm_instructions::{InstructionGenerator, LlmInstructions};
 use chrono::Utc;
 use forge_graph::{EdgeType, ExtractedSubgraph, ForgeGraph, Node, NodeType};
 use serde::{Deserialize, Serialize};
@@ -89,6 +90,10 @@ pub struct JsonNode {
     /// Business context (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub business_context: Option<serde_json::Value>,
+
+    /// LLM-optimized instructions generated from node data
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub llm_instructions: Option<LlmInstructions>,
 
     /// Staleness information (if node is stale)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -184,13 +189,14 @@ impl JsonSerializer {
     /// Build JSON output for a full graph.
     fn build_graph_output(&self, graph: &ForgeGraph) -> JsonOutput {
         let mut by_type: HashMap<String, usize> = HashMap::new();
+        let instruction_gen = InstructionGenerator::new(graph);
 
         let nodes: Vec<JsonNode> = graph
             .nodes()
             .map(|node| {
                 let type_str = node_type_to_string(node.node_type);
                 *by_type.entry(type_str.clone()).or_insert(0) += 1;
-                self.node_to_json(node, None)
+                self.node_to_json(node, None, &instruction_gen)
             })
             .collect();
 
@@ -222,6 +228,7 @@ impl JsonSerializer {
         query_info: Option<QueryInfo>,
     ) -> JsonOutput {
         let mut by_type: HashMap<String, usize> = HashMap::new();
+        let instruction_gen = InstructionGenerator::new(subgraph.graph());
 
         let nodes: Vec<JsonNode> = subgraph
             .nodes
@@ -229,7 +236,7 @@ impl JsonSerializer {
             .map(|scored| {
                 let type_str = node_type_to_string(scored.node.node_type);
                 *by_type.entry(type_str.clone()).or_insert(0) += 1;
-                self.node_to_json(scored.node, Some(scored.score))
+                self.node_to_json(scored.node, Some(scored.score), &instruction_gen)
             })
             .collect();
 
@@ -261,11 +268,22 @@ impl JsonSerializer {
     }
 
     /// Convert a Node to JsonNode.
-    fn node_to_json(&self, node: &Node, relevance: Option<f64>) -> JsonNode {
+    fn node_to_json(
+        &self,
+        node: &Node,
+        relevance: Option<f64>,
+        instruction_gen: &InstructionGenerator<'_>,
+    ) -> JsonNode {
         let business_context = node
             .business_context
             .as_ref()
             .and_then(|bc| serde_json::to_value(bc).ok());
+
+        // Generate LLM instructions (only for Service nodes, returns empty for others)
+        let llm_instructions = instruction_gen
+            .generate(&node.id)
+            .ok()
+            .filter(|i| !i.is_empty());
 
         // Calculate staleness information if enabled
         let staleness = if self.staleness_days > 0 {
@@ -288,6 +306,7 @@ impl JsonSerializer {
             relevance,
             attributes: serde_json::to_value(&node.attributes).unwrap_or(serde_json::Value::Null),
             business_context,
+            llm_instructions,
             staleness,
         }
     }
@@ -683,5 +702,364 @@ mod tests {
         // Should be able to parse as RFC3339 timestamp
         let result = chrono::DateTime::parse_from_rfc3339(&parsed.generated_at);
         assert!(result.is_ok());
+    }
+
+    // === M8-T5: LLM Instructions Tests ===
+
+    #[test]
+    fn test_serialize_graph_with_llm_instructions() {
+        let mut graph = ForgeGraph::new();
+
+        // Create a service with full attributes that will generate LLM instructions
+        let service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "api-service").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("api-service")
+            .attribute("language", "python")
+            .attribute("framework", "fastapi")
+            .attribute("test_framework", "pytest")
+            .attribute("deployment_method", "terraform")
+            .attribute("terraform_workspace", "production")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(service).unwrap();
+
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_graph(&graph);
+        let parsed: JsonOutput = serde_json::from_str(&output).unwrap();
+
+        // Find the service node
+        let api_node = parsed
+            .nodes
+            .iter()
+            .find(|n| n.name == "api-service")
+            .unwrap();
+
+        // Should have llm_instructions
+        assert!(api_node.llm_instructions.is_some());
+
+        let instructions = api_node.llm_instructions.as_ref().unwrap();
+
+        // Verify code_style is present and contains expected content
+        assert!(instructions.code_style.is_some());
+        assert!(
+            instructions
+                .code_style
+                .as_ref()
+                .unwrap()
+                .contains("FastAPI")
+        );
+
+        // Verify testing is present
+        assert!(instructions.testing.is_some());
+        assert!(instructions.testing.as_ref().unwrap().contains("pytest"));
+
+        // Verify deployment is present
+        assert!(instructions.deployment.is_some());
+        assert!(
+            instructions
+                .deployment
+                .as_ref()
+                .unwrap()
+                .contains("terraform apply")
+        );
+        assert!(
+            instructions
+                .deployment
+                .as_ref()
+                .unwrap()
+                .contains("production.tfvars")
+        );
+    }
+
+    #[test]
+    fn test_serialize_graph_with_llm_instructions_includes_dependencies() {
+        let mut graph = ForgeGraph::new();
+
+        // Create services with dependency relationship
+        let main_service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "main-service").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("main-service")
+            .attribute("language", "typescript")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        let auth_service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "auth-service").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("auth-service")
+            .attribute("language", "typescript")
+            .source(DiscoverySource::Manual)
+            .business_context(forge_graph::BusinessContext {
+                purpose: Some("Token validation".to_string()),
+                owner: None,
+                history: None,
+                gotchas: vec![],
+                notes: Default::default(),
+            })
+            .build()
+            .unwrap();
+
+        // Create database
+        let db = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Database, "ns", "users-db").unwrap())
+            .node_type(NodeType::Database)
+            .display_name("users-db")
+            .attribute("db_type", "dynamodb")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(main_service).unwrap();
+        graph.add_node(auth_service).unwrap();
+        graph.add_node(db).unwrap();
+
+        // Add edges
+        graph
+            .add_edge(
+                Edge::new(
+                    NodeId::new(NodeType::Service, "ns", "main-service").unwrap(),
+                    NodeId::new(NodeType::Service, "ns", "auth-service").unwrap(),
+                    EdgeType::Calls,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        graph
+            .add_edge(
+                Edge::new(
+                    NodeId::new(NodeType::Service, "ns", "main-service").unwrap(),
+                    NodeId::new(NodeType::Database, "ns", "users-db").unwrap(),
+                    EdgeType::Reads,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_graph(&graph);
+        let parsed: JsonOutput = serde_json::from_str(&output).unwrap();
+
+        // Find the main service node
+        let main_node = parsed
+            .nodes
+            .iter()
+            .find(|n| n.name == "main-service")
+            .unwrap();
+
+        // Should have llm_instructions with dependencies
+        assert!(main_node.llm_instructions.is_some());
+
+        let instructions = main_node.llm_instructions.as_ref().unwrap();
+        assert!(instructions.dependencies.is_some());
+
+        let deps = instructions.dependencies.as_ref().unwrap();
+
+        // Should have service dependency
+        assert!(!deps.services.is_empty());
+        assert!(deps.services[0].contains("auth-service"));
+        assert!(deps.services[0].contains("Token validation"));
+
+        // Should have database dependency
+        assert!(!deps.databases.is_empty());
+        assert!(deps.databases[0].contains("users-db"));
+    }
+
+    #[test]
+    fn test_serialize_graph_with_llm_instructions_includes_gotchas() {
+        let mut graph = ForgeGraph::new();
+
+        // Create a service with business context gotchas
+        let service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "rate-limited-api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("rate-limited-api")
+            .attribute("language", "python")
+            .source(DiscoverySource::Manual)
+            .business_context(forge_graph::BusinessContext {
+                purpose: Some("API service".to_string()),
+                owner: Some("Platform Team".to_string()),
+                history: None,
+                gotchas: vec![
+                    "Rate limit is 1000 req/sec".to_string(),
+                    "Must validate email before writes".to_string(),
+                ],
+                notes: Default::default(),
+            })
+            .build()
+            .unwrap();
+
+        graph.add_node(service).unwrap();
+
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_graph(&graph);
+        let parsed: JsonOutput = serde_json::from_str(&output).unwrap();
+
+        let api_node = parsed
+            .nodes
+            .iter()
+            .find(|n| n.name == "rate-limited-api")
+            .unwrap();
+
+        // Should have llm_instructions with gotchas
+        assert!(api_node.llm_instructions.is_some());
+
+        let instructions = api_node.llm_instructions.as_ref().unwrap();
+        assert!(!instructions.gotchas.is_empty());
+
+        // Gotchas should be converted to DO NOT/MUST statements
+        assert!(
+            instructions
+                .gotchas
+                .iter()
+                .all(|g| g.starts_with("DO NOT") || g.starts_with("MUST"))
+        );
+    }
+
+    #[test]
+    fn test_serialize_graph_database_node_no_llm_instructions() {
+        let mut graph = ForgeGraph::new();
+
+        // Create a database node (non-service nodes should not have llm_instructions)
+        let db = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Database, "ns", "users-db").unwrap())
+            .node_type(NodeType::Database)
+            .display_name("users-db")
+            .attribute("db_type", "dynamodb")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(db).unwrap();
+
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_graph(&graph);
+        let parsed: JsonOutput = serde_json::from_str(&output).unwrap();
+
+        let db_node = parsed.nodes.iter().find(|n| n.name == "users-db").unwrap();
+
+        // Database nodes should not have llm_instructions
+        assert!(db_node.llm_instructions.is_none());
+    }
+
+    #[test]
+    fn test_serialize_graph_service_without_metadata_no_llm_instructions() {
+        let mut graph = ForgeGraph::new();
+
+        // Create a minimal service without any attributes that generate instructions
+        let service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "basic-service").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("basic-service")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(service).unwrap();
+
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_graph(&graph);
+        let parsed: JsonOutput = serde_json::from_str(&output).unwrap();
+
+        let basic_node = parsed
+            .nodes
+            .iter()
+            .find(|n| n.name == "basic-service")
+            .unwrap();
+
+        // Service without metadata should not have llm_instructions (empty instructions are filtered)
+        assert!(basic_node.llm_instructions.is_none());
+    }
+
+    #[test]
+    fn test_serialize_subgraph_with_llm_instructions() {
+        let mut graph = ForgeGraph::new();
+
+        // Create a service with attributes
+        let service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "subgraph-api").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("subgraph-api")
+            .attribute("language", "python")
+            .attribute("framework", "flask")
+            .attribute("test_framework", "pytest")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(service).unwrap();
+
+        let config = SubgraphConfig {
+            seed_nodes: vec![NodeId::new(NodeType::Service, "ns", "subgraph-api").unwrap()],
+            max_depth: 1,
+            include_implicit_couplings: true,
+            min_relevance: 0.0,
+            edge_types: None,
+        };
+
+        let subgraph = graph.extract_subgraph(&config);
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_subgraph(&subgraph, None);
+        let parsed: JsonOutput = serde_json::from_str(&output).unwrap();
+
+        let api_node = parsed
+            .nodes
+            .iter()
+            .find(|n| n.name == "subgraph-api")
+            .unwrap();
+
+        // Subgraph nodes should also have llm_instructions
+        assert!(api_node.llm_instructions.is_some());
+
+        let instructions = api_node.llm_instructions.as_ref().unwrap();
+        assert!(instructions.code_style.is_some());
+        assert!(instructions.code_style.as_ref().unwrap().contains("Flask"));
+    }
+
+    #[test]
+    fn test_llm_instructions_json_serialization_format() {
+        let mut graph = ForgeGraph::new();
+
+        let service = NodeBuilder::new()
+            .id(NodeId::new(NodeType::Service, "ns", "format-test").unwrap())
+            .node_type(NodeType::Service)
+            .display_name("format-test")
+            .attribute("language", "python")
+            .attribute("framework", "django")
+            .attribute("deployment_method", "sam")
+            .attribute("stack_name", "format-test-stack")
+            .source(DiscoverySource::Manual)
+            .build()
+            .unwrap();
+
+        graph.add_node(service).unwrap();
+
+        let serializer = JsonSerializer::new();
+        let output = serializer.serialize_graph(&graph);
+
+        // Parse as raw JSON to verify structure
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let nodes = parsed.get("nodes").unwrap().as_array().unwrap();
+        let node = &nodes[0];
+
+        // llm_instructions should be a proper JSON object with expected fields
+        let instructions = node.get("llm_instructions").unwrap();
+        assert!(instructions.is_object());
+        assert!(instructions.get("code_style").is_some());
+        assert!(instructions.get("deployment").is_some());
+
+        // Verify code_style content
+        let code_style = instructions.get("code_style").unwrap().as_str().unwrap();
+        assert!(code_style.contains("Django"));
+
+        // Verify deployment content
+        let deployment = instructions.get("deployment").unwrap().as_str().unwrap();
+        assert!(deployment.contains("sam build"));
+        assert!(deployment.contains("format-test-stack"));
     }
 }
