@@ -134,8 +134,9 @@ pub fn run_map(options: MapOptions) -> Result<(), MapError> {
             .map_err(|e| MapError::WriteError(format!("{}: {}", output_path, e)))?;
         output::success(&format!("Output written to: {}", output_path));
     } else {
-        // Write to stdout
-        output::info(&output);
+        // Write to stdout - use println! directly for raw output (no emoji prefix)
+        // This is data output, not a status message, so we bypass the output module
+        println!("{}", output);
     }
 
     Ok(())

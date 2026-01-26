@@ -1219,10 +1219,29 @@ forge-graph = { path = "../forge-graph" }
     - Added 5 validation tests in `forge-cli/src/config.rs` to ensure examples parse correctly
     - All tests passing (660+ workspace tests)
 
-- [ ] **M7-T11**: Final integration testing
+- [x] **M7-T11**: Final integration testing
   - End-to-end with synthetic test repos
   - All commands exercised
-  - **Files**: `tests/e2e/`
+  - **Files**: `forge-cli/tests/e2e_full_workflow.rs`
+  - **Implementation Notes**:
+    - Created comprehensive e2e test file with 13 tests covering:
+      - `test_full_survey_workflow`: Multi-language survey (JS, Python, Terraform) and map workflow
+      - `test_map_output_formats`: Markdown, JSON, and Mermaid format validation
+      - `test_incremental_survey`: Verifies incremental survey performance
+      - `test_error_missing_config`: Error handling for missing config
+      - `test_error_no_repos`: Error handling for empty repos
+      - `test_error_invalid_repo_path`: Error handling for invalid paths
+      - `test_quiet_flag`: --quiet flag functionality
+      - `test_verbose_flag`: --verbose flag functionality
+      - `test_map_service_filter`: --service filter functionality
+      - `test_map_output_file`: --output file writing
+      - `test_coupling_detection`: Implicit coupling between services sharing resources
+      - `test_init_command`: forge init creates valid config
+      - `test_init_with_org`: forge init --org pre-fills organization
+    - Tests run the forge binary via subprocess to test CLI as users experience it
+    - Fixed map command to output raw data to stdout (without info emoji prefix) for programmatic consumption
+    - All 13 e2e tests passing
+    - All 673+ workspace tests passing
 
 ### Dependencies
 
@@ -1235,11 +1254,11 @@ console = "0.15"
 
 ### Acceptance Criteria
 
-- [ ] Re-running survey is significantly faster when few files changed
-- [ ] Documentation is complete and accurate
-- [ ] A new user can follow README and get working output
-- [ ] All tests pass in CI
-- [ ] No panics on malformed input
+- [x] Re-running survey is significantly faster when few files changed
+- [x] Documentation is complete and accurate
+- [x] A new user can follow README and get working output
+- [x] All tests pass in CI
+- [x] No panics on malformed input
 
 ---
 
